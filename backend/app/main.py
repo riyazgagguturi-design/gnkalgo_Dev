@@ -29,11 +29,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.debug)
     for handler in logging.getLogger().handlers:
         handler.addFilter(RequestIdFilter())
-    init_engine(settings)
-    init_redis(settings)
-    yield
-    await close_redis()
-    await dispose_engine()
+    if getattr(app.state, "db_ready", False) is not True:
+        init_engine(settings)
+        app.state.db_ready = True
+    if getattr(app.state, "redis_ready", False) is not True:
+        init_redis(settings)
+        app.state.redis_ready = True
+    try:
+        yield
+    finally:
+        await close_redis()
+        await dispose_engine()
+        app.state.db_ready = False
+        app.state.redis_ready = False
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -47,6 +55,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.debug = settings.debug
+    app.state.db_ready = False
+    app.state.redis_ready = False
 
     app.add_middleware(SessionCookieMiddleware)
     app.add_middleware(RequestIdMiddleware)
