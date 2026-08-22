@@ -5,8 +5,7 @@ export function AppLayout() {
     <div className="shell">
       <header className="topbar">
         <Link to="/" className="brand">
-          <img src="/brand/logo.svg" alt="GNK Algo" className="logo" />
-          <span>GNK Algo</span>
+          <img src="/brand/logo.png" alt="GNK Algo" className="logo" />
         </Link>
         <nav>
           <Link to="/">Status</Link>

@@ -18,8 +18,7 @@ export function AppShell() {
     <div className="app-shell">
       <header className="topbar">
         <Link to="/dashboard" className="brand">
-          <img src="/brand/logo.svg" alt="GNK Algo" className="logo" />
-          <span>GNK Algo</span>
+          <img src="/brand/logo.png" alt="GNK Algo" className="logo" />
         </Link>
         <button type="button" className="menu-toggle" aria-label="Menu" onClick={() => setOpen((v) => !v)}>
           Menu
