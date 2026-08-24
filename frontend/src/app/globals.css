@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root {
+  --background: #071018;
+  --foreground: #e8f1f4;
+  --panel: #0d1b24;
+  --line: #1d3542;
+  --accent: #2ee6a6;
+  --accent-2: #3aa0ff;
+  --danger: #ff6b6b;
+}
+
+body {
+  background: radial-gradient(1200px 600px at 10% -10%, #123348 0%, transparent 50%),
+    radial-gradient(900px 500px at 100% 0%, #0c2a22 0%, transparent 45%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}

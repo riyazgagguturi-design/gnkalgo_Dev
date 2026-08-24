@@ -1,0 +1,71 @@
+# GnKAlgo
+
+Indian algo trading platform for **www.gnkalgo.com**.
+
+Stack: **FastAPI** (backend) + **Python ML service** + **Next.js** (frontend) + PostgreSQL/SQLite + Redis.
+
+Brokers: **DhanHQ** and **Groww**.
+
+## Local development
+
+```bash
+# 1. Backend
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# 2. ML service (optional for AI signals)
+cd ml-service
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8001
+
+# 3. Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+API docs: http://localhost:8000/docs
+
+## Docker
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Default local database is SQLite (`backend/gnkalgo.db`). Set `DATABASE_URL` to PostgreSQL in production.
+
+## Product modules
+
+| Route | Purpose |
+|-------|---------|
+| `/login` `/register` | Auth with JWT, MFA, password rules |
+| `/dashboard` | Portfolio and activity summary |
+| `/orders` | Paper and live orders |
+| `/strategies` | Create and run strategies |
+| `/signals` | AI BUY/SELL/HOLD signals |
+| `/webhooks` | TradingView-style inbound webhooks |
+| `/settings` | Broker connect (Dhan / Groww) + MFA |
+
+## Security
+
+- Argon2 password hashing
+- Short-lived JWT access tokens + rotating refresh tokens
+- TOTP MFA
+- Encrypted broker credentials
+- HMAC + token for inbound webhooks
+- Risk checks (qty cap, market hours for live orders)
+- Audit logs
+
+AI signals are **not investment advice**.
+
+## Phases
+
+See `docs/PHASES.md`.

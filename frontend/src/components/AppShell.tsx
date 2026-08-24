@@ -1,0 +1,61 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { clearTokens, getAccessToken } from "@/lib/api";
+import { useEffect } from "react";
+
+const NAV = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/orders", label: "Orders" },
+  { href: "/strategies", label: "Strategies" },
+  { href: "/signals", label: "AI Signals" },
+  { href: "/webhooks", label: "Webhooks" },
+  { href: "/settings", label: "Settings" },
+];
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!getAccessToken()) router.replace("/login");
+  }, [router]);
+
+  return (
+    <div className="min-h-screen grid md:grid-cols-[240px_1fr]">
+      <aside className="border-b md:border-b-0 md:border-r border-[#1d3542] bg-[#0d1b24]/80 p-5">
+        <Link href="/dashboard" className="block text-xl font-semibold tracking-tight">
+          GnK<span className="text-[#2ee6a6]">Algo</span>
+        </Link>
+        <p className="mt-1 text-xs text-slate-400">www.gnkalgo.com</p>
+        <nav className="mt-8 flex md:flex-col gap-2 overflow-x-auto">
+          {NAV.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`rounded-lg px-3 py-2 text-sm ${
+                  active ? "bg-[#123348] text-[#2ee6a6]" : "text-slate-300 hover:bg-[#123348]/60"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <button
+          className="mt-8 text-sm text-slate-400 hover:text-white"
+          onClick={() => {
+            clearTokens();
+            router.replace("/login");
+          }}
+        >
+          Sign out
+        </button>
+      </aside>
+      <main className="p-6 md:p-10">{children}</main>
+    </div>
+  );
+}
