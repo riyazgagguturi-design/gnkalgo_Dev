@@ -70,4 +70,9 @@ AI signals are **not investment advice**.
 
 Set SMTP in `.env` (see `docs/EMAIL.md`). Until then, register shows a verify link in the app.
 
+## Deploy
+
+See `docs/DEPLOY.md`. Staging: `docker compose -f docker-compose.prod.yml up -d --build`
+
+
 See `docs/PHASES.md`.
