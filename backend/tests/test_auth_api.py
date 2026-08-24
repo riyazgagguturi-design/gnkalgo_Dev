@@ -1,4 +1,5 @@
 import os
+import uuid
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_gnkalgo.db"
 
@@ -16,14 +17,20 @@ def test_health():
 
 def test_register_verify_login():
     with TestClient(app) as client:
-        email = "devtrader@gnkalgo.com"
+        email = f"devtrader-{uuid.uuid4().hex[:8]}@gnkalgo.com"
         password = "SecurePass1!"
         res = client.post(
             "/api/v1/auth/register",
-            json={"email": email, "password": password, "full_name": "Dev Trader", "phone": "9876543210"},
+            json={
+                "email": email,
+                "password": password,
+                "full_name": "Dev Trader",
+                "phone": f"98{uuid.uuid4().int % 10**8:08d}",
+            },
         )
         assert res.status_code == 201
         message = res.json()["message"]
+        assert "token=" in message
         token = message.split("token=")[-1]
         verify = client.post("/api/v1/auth/verify-email", json={"token": token})
         assert verify.status_code == 200

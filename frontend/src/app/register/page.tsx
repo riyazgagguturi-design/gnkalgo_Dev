@@ -19,7 +19,7 @@ export default function RegisterPage() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await api<{ message: string }>("/api/v1/auth/register", {
+        const res = await api<{ message: string }>("/api/v1/auth/register", {
         method: "POST",
         body: JSON.stringify({ full_name: fullName, email, phone: phone || null, password }),
       });
@@ -28,6 +28,20 @@ export default function RegisterPage() {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function resend() {
+    setError("");
+    setMessage("");
+    try {
+      const res = await api<{ message: string }>("/api/v1/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      setMessage(res.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Resend failed");
     }
   }
 
@@ -48,6 +62,9 @@ export default function RegisterPage() {
         {message && <p className="mt-3 text-sm text-[#2ee6a6] break-all">{message}</p>}
         <button disabled={loading} className="mt-6 w-full rounded-xl bg-[#2ee6a6] py-2.5 font-semibold text-[#071018]">
           {loading ? "Creating..." : "Register"}
+        </button>
+        <button type="button" onClick={resend} className="mt-3 w-full rounded-xl border border-[#1d3542] py-2.5 text-sm">
+          Resend verification email
         </button>
         <p className="mt-4 text-sm text-slate-400">
           Already registered? <Link href="/login" className="text-[#2ee6a6]">Login</Link>

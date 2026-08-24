@@ -66,6 +66,8 @@ Default local database is SQLite (`backend/gnkalgo.db`). Set `DATABASE_URL` to P
 
 AI signals are **not investment advice**.
 
-## Phases
+## Email / verification
+
+Set SMTP in `.env` (see `docs/EMAIL.md`). Until then, register shows a verify link in the app.
 
 See `docs/PHASES.md`.

@@ -61,6 +61,22 @@ class AuthService:
         await log_audit(db, "user.registered", user.id, request)
         return user, raw_token
 
+    async def create_verification_token(self, db: AsyncSession, email: str) -> str:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise ValueError("If the email exists, a verification link has been sent.")
+        if user.is_verified:
+            raise ValueError("Email is already verified. You can login.")
+        raw_token = generate_secure_token()
+        verification = EmailVerificationToken(
+            user_id=user.id,
+            token_hash=hash_token(raw_token),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+        )
+        db.add(verification)
+        return raw_token
+
     async def verify_email(self, db: AsyncSession, raw_token: str, request: Request) -> User:
         token_hash = hash_token(raw_token)
         result = await db.execute(

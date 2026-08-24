@@ -21,6 +21,7 @@ from app.schemas.auth import (
     VerifyEmailRequest,
 )
 from app.services.auth_service import auth_service, broker_service
+from app.services.email_service import email_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -33,9 +34,41 @@ async def register(data: RegisterRequest, request: Request, db: AsyncSession = D
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     verify_url = f"{settings.frontend_url}/verify-email?token={verify_token}"
+    if email_service.enabled():
+        try:
+            await email_service.send_verification(user.email, verify_url)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Account created but email failed to send. Check SMTP settings. {exc}",
+            )
+        return MessageResponse(message="Registration successful. Check your inbox for the verification link.")
+
     return MessageResponse(
-        message=f"Registration successful. Verify your email. Dev token URL: {verify_url}"
+        message=f"SMTP is not configured. Verify using this link: {verify_url}"
     )
+
+
+@router.post("/resend-verification", response_model=MessageResponse)
+async def resend_verification(
+    data: ForgotPasswordRequest, request: Request, db: AsyncSession = Depends(get_db)
+):
+    try:
+        verify_token = await auth_service.create_verification_token(db, data.email)
+    except ValueError as e:
+        # Do not reveal whether the email exists when user is missing
+        if "already verified" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        return MessageResponse(message="If the email exists, a verification link has been sent.")
+
+    verify_url = f"{settings.frontend_url}/verify-email?token={verify_token}"
+    if email_service.enabled():
+        try:
+            await email_service.send_verification(data.email, verify_url)
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Email failed to send: {exc}")
+        return MessageResponse(message="If the email exists, a verification link has been sent.")
+    return MessageResponse(message=f"SMTP is not configured. Verify using this link: {verify_url}")
 
 
 @router.post("/verify-email", response_model=MessageResponse)
@@ -85,7 +118,13 @@ async def forgot_password(
     if not token:
         return MessageResponse(message="If the email exists, a reset link has been sent.")
     reset_url = f"{settings.frontend_url}/reset-password?token={token}"
-    return MessageResponse(message=f"Reset link generated. Dev URL: {reset_url}")
+    if email_service.enabled():
+        try:
+            await email_service.send_password_reset(data.email, reset_url)
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Email failed to send: {exc}")
+        return MessageResponse(message="If the email exists, a reset link has been sent.")
+    return MessageResponse(message=f"SMTP is not configured. Reset using this link: {reset_url}")
 
 
 @router.post("/reset-password", response_model=MessageResponse)

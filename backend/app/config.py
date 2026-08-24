@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "noreply@gnkalgo.com"
+    smtp_starttls: bool = True
+    smtp_ssl: bool = False
 
     dhan_api_base_url: str = "https://api.dhan.co/v2"
     dhan_static_ip: str = ""
