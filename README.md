@@ -74,5 +74,7 @@ Set SMTP in `.env` (see `docs/EMAIL.md`). Until then, register shows a verify li
 
 See `docs/DEPLOY.md`. Staging: `docker compose -f docker-compose.prod.yml up -d --build`
 
+**Oracle Cloud + Ubuntu 24 + Nginx + Cloudflare:** `docs/DEPLOY-ORACLE.md`
+
 
 See `docs/PHASES.md`.

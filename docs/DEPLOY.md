@@ -33,6 +33,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 Put Cloudflare or Caddy in front for HTTPS. Point DNS A records to the VPS public IP.
 
+**Oracle Cloud Ubuntu 24 + Nginx + Cloudflare (full steps):** see `docs/DEPLOY-ORACLE.md`.
+
 ## Option B — Public production (`www.gnkalgo.com`)
 
 Do this after staging works:
