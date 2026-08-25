@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { api } from "@/lib/api";
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
@@ -48,7 +49,8 @@ export default function RegisterPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md items-center px-6 py-10">
       <form onSubmit={onSubmit} className="w-full rounded-2xl border border-[#1d3542] bg-[#0d1b24]/80 p-8">
-        <h1 className="text-2xl font-semibold">Create account</h1>
+        <Logo href="/" size={44} />
+        <h1 className="mt-6 text-2xl font-semibold">Create account</h1>
         <p className="mt-1 text-sm text-slate-400">Password: 12+ chars, upper, lower, digit, special.</p>
         <label className="mt-6 block text-sm">Full name</label>
         <input className="mt-1 w-full rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" value={fullName} onChange={(e) => setFullName(e.target.value)} required />

@@ -13,8 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GnKAlgo — Indian Algo Trading",
+  title: "GNK ALGO — Intelligence behind every trade",
   description: "Algo platform for the Indian stock market. Connect Dhan and Groww, run strategies, AI signals, and webhooks.",
+  icons: {
+    icon: "/logo.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { clearTokens, getAccessToken } from "@/lib/api";
 import { useEffect } from "react";
+import { Logo } from "@/components/Logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -25,9 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen grid md:grid-cols-[240px_1fr]">
       <aside className="border-b md:border-b-0 md:border-r border-[#1d3542] bg-[#0d1b24]/80 p-5">
-        <Link href="/dashboard" className="block text-xl font-semibold tracking-tight">
-          GnK<span className="text-[#2ee6a6]">Algo</span>
-        </Link>
+        <Logo href="/dashboard" size={36} />
         <p className="mt-1 text-xs text-slate-400">www.gnkalgo.com</p>
         <nav className="mt-8 flex md:flex-col gap-2 overflow-x-auto">
           {NAV.map((item) => {

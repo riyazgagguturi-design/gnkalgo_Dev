@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, setTokens, TokenBundle } from "@/lib/api";
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,7 +35,8 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md items-center px-6">
       <form onSubmit={onSubmit} className="w-full rounded-2xl border border-[#1d3542] bg-[#0d1b24]/80 p-8">
-        <h1 className="text-2xl font-semibold">Login</h1>
+        <Logo href="/" size={44} />
+        <h1 className="mt-6 text-2xl font-semibold">Login</h1>
         <p className="mt-1 text-sm text-slate-400">GnKAlgo account</p>
         <label className="mt-6 block text-sm">Email</label>
         <input className="mt-1 w-full rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
