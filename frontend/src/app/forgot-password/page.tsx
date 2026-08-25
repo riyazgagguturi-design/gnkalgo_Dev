@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { api } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -25,7 +26,8 @@ export default function ForgotPasswordPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md items-center px-6">
       <form onSubmit={onSubmit} className="w-full rounded-2xl border border-[#1d3542] bg-[#0d1b24]/80 p-8">
-        <h1 className="text-2xl font-semibold">Reset password</h1>
+        <Logo href="/" size={44} />
+        <h1 className="mt-6 text-2xl font-semibold">Reset password</h1>
         <input className="mt-6 w-full rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
         {error && <p className="mt-3 text-sm text-[#ff6b6b]">{error}</p>}
         {message && <p className="mt-3 text-sm text-[#2ee6a6] break-all">{message}</p>}
