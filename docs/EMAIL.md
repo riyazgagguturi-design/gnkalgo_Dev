@@ -14,6 +14,18 @@ Copy `.env.example` to `.env` in the project root (or `backend/.env`) and fill:
 | `SMTP_STARTTLS` | `true` for port 587 |
 | `SMTP_SSL` | `true` for port 465 |
 
+## Namecheap Private Email (gnkalgo.com)
+
+```
+SMTP_HOST=mail.privateemail.com
+SMTP_PORT=465
+SMTP_SSL=true
+SMTP_STARTTLS=false
+SMTP_USER=noreply@gnkalgo.com
+SMTP_PASSWORD=<mailbox password in local .env only>
+SMTP_FROM=noreply@gnkalgo.com
+```
+
 ## Gmail
 
 1. Google Account → Security → 2-Step Verification ON  
