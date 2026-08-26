@@ -249,7 +249,17 @@ docker compose -f docker-compose.prod.yml logs -f frontend
 4. Register → verification email → login  
 5. Place a **paper** order  
 
-If the site is blank on API calls, check `ALLOWED_ORIGINS` and that the frontend was built with `NEXT_PUBLIC_API_URL=https://api.gnkalgo.com`.
+If register shows **Failed to fetch**, the browser could not reach the API (often the UI still called `localhost:8000`). Nginx now proxies `/api/` on `www.gnkalgo.com` to FastAPI. After `git pull`, copy the updated nginx file, reload nginx, and rebuild frontend:
+
+```bash
+cd /opt/gnkalgo
+git pull origin cursor/gnkalgo-platform-1a67
+sudo cp deploy/nginx/www.gnkalgo.com.conf /etc/nginx/sites-available/
+sudo nginx -t && sudo systemctl reload nginx
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Then test https://www.gnkalgo.com/health and register again.
 
 ---
 

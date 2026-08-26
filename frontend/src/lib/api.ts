@@ -1,4 +1,14 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function resolveApiBase(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL || "";
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    const onLocalhost = host === "localhost" || host === "127.0.0.1";
+    if (!onLocalhost && (!configured || configured.includes("localhost"))) {
+      return "";
+    }
+  }
+  return configured || "http://localhost:8000";
+}
 
 export type TokenBundle = {
   access_token: string;
@@ -32,7 +42,7 @@ export async function api<T>(path: string, options: RequestInit = {}, auth = fal
     const token = getAccessToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${resolveApiBase()}${path}`, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = (data as { detail?: string }).detail || res.statusText;
