@@ -50,13 +50,14 @@ app.add_middleware(
 )
 
 API_PREFIX = "/api/v1"
-app.include_router(auth_router, prefix=API_PREFIX)
-app.include_router(brokers_router, prefix=API_PREFIX)
-app.include_router(dashboard_router, prefix=API_PREFIX)
-app.include_router(orders_router, prefix=API_PREFIX)
-app.include_router(strategies_router, prefix=API_PREFIX)
-app.include_router(signals_router, prefix=API_PREFIX)
-app.include_router(webhooks_router, prefix=API_PREFIX)
+for prefix in (API_PREFIX, "/v1"):
+    app.include_router(auth_router, prefix=prefix)
+    app.include_router(brokers_router, prefix=prefix)
+    app.include_router(dashboard_router, prefix=prefix)
+    app.include_router(orders_router, prefix=prefix)
+    app.include_router(strategies_router, prefix=prefix)
+    app.include_router(signals_router, prefix=prefix)
+    app.include_router(webhooks_router, prefix=prefix)
 
 
 @app.get("/health")
