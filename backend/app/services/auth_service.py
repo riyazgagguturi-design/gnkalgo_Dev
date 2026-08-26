@@ -7,6 +7,7 @@ from fastapi import Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.deps import log_audit
 from app.core.security import (
     create_access_token,
@@ -129,6 +130,9 @@ class AuthService:
 
         user.failed_login_attempts = 0
         user.locked_until = None
+        user.last_login_at = datetime.now(timezone.utc)
+        if user.email.lower() in settings.admin_email_list:
+            user.is_admin = True
 
         access = create_access_token(str(user.id))
         refresh, expires = create_refresh_token(str(user.id))

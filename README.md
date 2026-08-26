@@ -52,7 +52,9 @@ Default local database is SQLite (`backend/gnkalgo.db`). Set `DATABASE_URL` to P
 | `/strategies` | Create and run strategies |
 | `/signals` | AI BUY/SELL/HOLD signals |
 | `/webhooks` | TradingView-style inbound webhooks |
-| `/settings` | Broker connect (Dhan / Groww) + MFA |
+| `/subscribe` | **Share this URL with all users.** UPI plans ₹199 / ₹999 / ₹1,999 |
+| `/subscribe/pay` | PhonePe, GPay, Paytm intents + UTR |
+| `/admin` | Who registered, who logged in, active vs inactive, confirm UPI |
 
 After login, use the dashboard **Next product steps** checklist. Details: `docs/NEXT-STEPS.md`.
 

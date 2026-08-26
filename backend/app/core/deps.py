@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.security import decode_token
 from app.database import get_db
 from app.models import AuditLog, User
@@ -35,6 +36,9 @@ async def get_current_user(
 
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+    if user.email.lower() in settings.admin_email_list and not user.is_admin:
+        user.is_admin = True
 
     return user
 

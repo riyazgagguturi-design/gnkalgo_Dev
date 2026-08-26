@@ -150,6 +150,9 @@ FRONTEND_URL=https://www.gnkalgo.com
 BACKEND_PUBLIC_URL=https://www.gnkalgo.com
 NEXT_PUBLIC_API_URL=
 ALLOWED_ORIGINS=https://www.gnkalgo.com,https://gnkalgo.com
+ADMIN_EMAILS=your-login-email@gnkalgo.com
+UPI_VPA=yourrealvpa@oksbi
+UPI_PAYEE_NAME=GNK ALGO
 
 SMTP_HOST=mail.privateemail.com
 SMTP_PORT=465
@@ -260,6 +263,29 @@ docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 Then test https://www.gnkalgo.com/health and register again.
+
+---
+
+## 11b. UPI subscribe + admin (share with all users)
+
+**Customer link (share this):** https://www.gnkalgo.com/subscribe
+
+Prices: ₹199 (1 day), ₹999 (5 days), ₹1,999 (22 days). **UPI only** (PhonePe, GPay, Paytm). User pays, enters UTR, you confirm on Admin.
+
+Add to `/opt/gnkalgo/.env`:
+
+```
+ADMIN_EMAILS=your-login-email@gnkalgo.com
+UPI_VPA=yourrealvpa@oksbi
+UPI_PAYEE_NAME=GNK ALGO
+```
+
+Then recreate backend and rebuild frontend. Log in once so that email becomes admin. Open https://www.gnkalgo.com/admin
+
+- **Registered** = accounts created  
+- **Active** = logged in within 7 days  
+- **Inactive** = registered but no login in 7 days  
+- **Never logged in** = registered, never signed in  
 
 ---
 

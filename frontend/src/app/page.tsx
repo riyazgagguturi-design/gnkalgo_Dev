@@ -22,7 +22,10 @@ export default function Home() {
         consume TradingView webhooks, and generate AI signals.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
-        <a href="/register" className="rounded-xl bg-[#2ee6a6] px-5 py-3 text-sm font-semibold text-[#071018]">
+        <a href="/subscribe" className="rounded-xl bg-[#2ee6a6] px-5 py-3 text-sm font-semibold text-[#071018]">
+          Subscribe (UPI)
+        </a>
+        <a href="/register" className="rounded-xl border border-[#1d3542] px-5 py-3 text-sm">
           Create account
         </a>
         <a href="/login" className="rounded-xl border border-[#1d3542] px-5 py-3 text-sm">

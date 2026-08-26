@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearTokens, getAccessToken } from "@/lib/api";
-import { useEffect } from "react";
+import { api, clearTokens, getAccessToken } from "@/lib/api";
+import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/subscribe", label: "Subscribe" },
   { href: "/orders", label: "Orders" },
   { href: "/strategies", label: "Strategies" },
   { href: "/signals", label: "AI Signals" },
@@ -18,9 +19,16 @@ const NAV = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (!getAccessToken()) router.replace("/login");
+    if (!getAccessToken()) {
+      router.replace("/login");
+      return;
+    }
+    api<{ is_admin?: boolean }>("/api/v1/auth/me", {}, true)
+      .then((me) => setIsAdmin(Boolean(me.is_admin)))
+      .catch(() => setIsAdmin(false));
   }, [router]);
 
   return (
@@ -29,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Logo href="/dashboard" size={36} />
         <p className="mt-1 text-xs text-slate-400">www.gnkalgo.com</p>
         <nav className="mt-8 flex md:flex-col gap-2 overflow-x-auto">
-          {NAV.map((item) => {
+          {[...NAV, ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : [])].map((item) => {
             const active = pathname === item.href;
             return (
               <Link

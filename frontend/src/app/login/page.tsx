@@ -1,13 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { api, setTokens, TokenBundle } from "@/lib/api";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const search = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mfa, setMfa] = useState("");
@@ -24,7 +26,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password, mfa_code: mfa || null }),
       });
       setTokens(tokens);
-      router.push("/dashboard");
+      router.push(search.get("next") || "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -55,5 +57,13 @@ export default function LoginPage() {
         </p>
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="p-10 text-slate-400">Loading…</main>}>
+      <LoginForm />
+    </Suspense>
   );
 }

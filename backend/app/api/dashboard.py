@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import BrokerConnection, Order, Signal, Strategy, User
+from app.services import billing_service
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -32,6 +33,7 @@ async def dashboard_summary(
     latest_orders = await db.execute(
         select(Order).where(Order.user_id == current_user.id).order_by(Order.created_at.desc()).limit(5)
     )
+    sub = await billing_service.active_subscription(db, current_user)
 
     return {
         "user": current_user.full_name or current_user.email,
@@ -49,7 +51,18 @@ async def dashboard_summary(
         "disclaimer": "Not investment advice. For educational purposes only.",
         "mfa_enabled": current_user.mfa_enabled,
         "email_verified": current_user.is_verified,
+        "is_admin": current_user.is_admin,
+        "subscription": (
+            {"active": True, "plan_code": sub.plan_code, "expires_at": sub.expires_at} if sub else {"active": False}
+        ),
         "next_steps": [
+            {
+                "id": "subscribe",
+                "title": "Subscribe (UPI)",
+                "done": sub is not None,
+                "href": "/subscribe",
+                "detail": "₹199 / 1 day · ₹999 / 5 days · ₹1,999 / 22 days. PhonePe, GPay, Paytm.",
+            },
             {
                 "id": "mfa",
                 "title": "Enable MFA",

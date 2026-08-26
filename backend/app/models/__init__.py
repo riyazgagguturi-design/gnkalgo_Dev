@@ -1,3 +1,4 @@
+from app.models.billing import Payment, Subscription
 from app.models.trading import (
     Order,
     Signal,
@@ -30,4 +31,6 @@ __all__ = [
     "Signal",
     "Webhook",
     "WebhookLog",
+    "Payment",
+    "Subscription",
 ]

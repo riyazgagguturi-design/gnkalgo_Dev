@@ -37,6 +37,13 @@ class Settings(BaseSettings):
 
     ml_service_url: str = "http://localhost:8001"
     backend_public_url: str = "http://localhost:8000"
+    admin_emails: str = ""
+    upi_vpa: str = "gnkalgo@upi"
+    upi_payee_name: str = "GNK ALGO"
+
+    @property
+    def admin_email_list(self) -> list[str]:
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
 
     @property
     def origins_list(self) -> list[str]:

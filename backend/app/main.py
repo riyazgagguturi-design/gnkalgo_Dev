@@ -6,7 +6,11 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from sqlalchemy import text
+
+from app.api.admin import router as admin_router
 from app.api.auth import brokers_router, router as auth_router
+from app.api.billing import router as billing_router
 from app.api.dashboard import router as dashboard_router
 from app.api.orders import router as orders_router
 from app.api.signals import router as signals_router
@@ -14,16 +18,31 @@ from app.api.strategies import router as strategies_router
 from app.api.webhooks import router as webhooks_router
 from app.config import settings
 from app.database import Base, engine
+from app.models import billing as _billing_models  # noqa: F401
 from app.models import trading as _trading_models  # noqa: F401
 from app.models import user as _user_models  # noqa: F401
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 
+def _add_user_columns(sync_conn):
+    dialect = sync_conn.dialect.name
+    if dialect == "sqlite":
+        cols = {row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(users)")}
+        if "last_login_at" not in cols:
+            sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN last_login_at DATETIME")
+        if "is_admin" not in cols:
+            sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0")
+        return
+    sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ")
+    sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_user_columns)
     yield
     await engine.dispose()
 
@@ -58,6 +77,8 @@ for prefix in (API_PREFIX, "/v1"):
     app.include_router(strategies_router, prefix=prefix)
     app.include_router(signals_router, prefix=prefix)
     app.include_router(webhooks_router, prefix=prefix)
+    app.include_router(billing_router, prefix=prefix)
+    app.include_router(admin_router, prefix=prefix)
 
 
 @app.get("/health")

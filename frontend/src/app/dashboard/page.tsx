@@ -18,6 +18,7 @@ type Summary = {
   disclaimer: string;
   mfa_enabled?: boolean;
   next_steps?: Step[];
+  subscription?: { active: boolean; plan_code?: string; expires_at?: string };
 };
 
 export default function DashboardPage() {
@@ -38,6 +39,13 @@ export default function DashboardPage() {
       <h1 className="text-3xl font-semibold">Dashboard</h1>
       <p className="mt-1 text-slate-400">Welcome {data?.user || ""}</p>
       {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
+      <p className="mt-3 text-sm text-slate-400">
+        {data?.subscription?.active
+          ? `Plan ${data.subscription.plan_code} until ${data.subscription.expires_at}`
+          : "No active plan. Share https://www.gnkalgo.com/subscribe"}
+        {" · "}
+        <Link href="/subscribe" className="text-[#2ee6a6]">Buy with UPI</Link>
+      </p>
 
       <section className="mt-8 rounded-2xl border border-[#1d3542] bg-[#0d1b24]/70 p-5">
         <h2 className="text-lg font-medium">Next product steps</h2>
