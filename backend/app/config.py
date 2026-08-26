@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     admin_emails: str = ""
     upi_vpa: str = "gnkalgo@upi"
     upi_payee_name: str = "GNK ALGO"
+    strategy_scheduler_tick_seconds: int = 60
 
     @property
     def admin_email_list(self) -> list[str]:

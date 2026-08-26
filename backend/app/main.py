@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -38,12 +40,43 @@ def _add_user_columns(sync_conn):
     sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE")
 
 
+def _add_strategy_columns(sync_conn):
+    dialect = sync_conn.dialect.name
+    if dialect == "sqlite":
+        cols = {row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(strategies)")}
+        if "schedule_enabled" not in cols:
+            sync_conn.exec_driver_sql("ALTER TABLE strategies ADD COLUMN schedule_enabled BOOLEAN DEFAULT 0")
+        if "interval_minutes" not in cols:
+            sync_conn.exec_driver_sql("ALTER TABLE strategies ADD COLUMN interval_minutes INTEGER DEFAULT 0")
+        if "last_scheduled_run_at" not in cols:
+            sync_conn.exec_driver_sql("ALTER TABLE strategies ADD COLUMN last_scheduled_run_at DATETIME")
+        return
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE strategies ADD COLUMN IF NOT EXISTS schedule_enabled BOOLEAN DEFAULT FALSE"
+    )
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE strategies ADD COLUMN IF NOT EXISTS interval_minutes INTEGER DEFAULT 0"
+    )
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE strategies ADD COLUMN IF NOT EXISTS last_scheduled_run_at TIMESTAMPTZ"
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services.strategy_scheduler import start_strategy_scheduler
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_add_user_columns)
+        await conn.run_sync(_add_strategy_columns)
+    scheduler_task = start_strategy_scheduler()
     yield
+    scheduler_task.cancel()
+    try:
+        await scheduler_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
 
 

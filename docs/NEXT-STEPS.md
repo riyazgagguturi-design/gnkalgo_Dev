@@ -31,7 +31,19 @@ Status should be `PAPER_FILLED`. No money moves.
 - Groww: Trading API subscription, then Settings → Groww  
 - Live: MFA on, broker connected, static IP for Dhan, market hours  
 
-## 5. Merge the GitHub PR
+## 5. Build a scheduled strategy (no webhook)
+
+Strategies → **Strategy builder**:
+
+1. Set symbol, **BUY** or **SELL**, quantity  
+2. Paper mode on for testing  
+3. Enable **Run on schedule** and set minutes (e.g. 15)  
+4. Save — the backend runs it every N minutes automatically  
+5. Use **Pause schedule** to stop without deleting  
+
+Manual **Run once** still works anytime.
+
+## 6. Merge the GitHub PR
 
 https://github.com/riyazgagguturi-design/gnkalgo_Dev/compare/main...cursor/gnkalgo-platform-1a67
 

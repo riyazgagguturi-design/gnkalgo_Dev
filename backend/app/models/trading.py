@@ -77,6 +77,9 @@ class Strategy(Base):
     paper_mode: Mapped[bool] = mapped_column(Boolean, default=True)
     max_quantity: Mapped[int] = mapped_column(Integer, default=100)
     max_daily_loss: Mapped[float] = mapped_column(Float, default=5000)
+    schedule_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    last_scheduled_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
