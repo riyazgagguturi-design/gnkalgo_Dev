@@ -147,8 +147,8 @@ SECRET_KEY=<run: openssl rand -hex 32>
 ENCRYPTION_KEY=<run: openssl rand -hex 32>
 POSTGRES_PASSWORD=<strong password>
 FRONTEND_URL=https://www.gnkalgo.com
-BACKEND_PUBLIC_URL=https://api.gnkalgo.com
-NEXT_PUBLIC_API_URL=https://api.gnkalgo.com
+BACKEND_PUBLIC_URL=https://www.gnkalgo.com
+NEXT_PUBLIC_API_URL=
 ALLOWED_ORIGINS=https://www.gnkalgo.com,https://gnkalgo.com
 
 SMTP_HOST=mail.privateemail.com
@@ -160,7 +160,7 @@ SMTP_PASSWORD=<mailbox password>
 SMTP_FROM=noreply@gnkalgo.com
 ```
 
-For **dev** staging, use `https://dev.gnkalgo.com` and `https://api-dev.gnkalgo.com`.
+For **dev** staging, use `https://dev.gnkalgo.com`. Leave `NEXT_PUBLIC_API_URL` empty so the browser calls `/api` on the same host.
 
 `NEXT_PUBLIC_API_URL` is baked into the frontend **at Docker build time**. If you change it later, rebuild:
 
