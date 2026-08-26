@@ -80,5 +80,7 @@ See `docs/DEPLOY.md`. Staging: `docker compose -f docker-compose.prod.yml up -d 
 
 **Oracle Cloud + Ubuntu 24 + Nginx + Cloudflare:** `docs/DEPLOY-ORACLE.md`
 
+**E2E flow, all URLs, DB queries, start/stop:** `docs/E2E-PROJECT.md`
+
 
 See `docs/PHASES.md`.
