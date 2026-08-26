@@ -47,4 +47,36 @@ async def dashboard_summary(
             for o in latest_orders.scalars()
         ],
         "disclaimer": "Not investment advice. For educational purposes only.",
+        "mfa_enabled": current_user.mfa_enabled,
+        "email_verified": current_user.is_verified,
+        "next_steps": [
+            {
+                "id": "mfa",
+                "title": "Enable MFA",
+                "done": current_user.mfa_enabled,
+                "href": "/settings#mfa",
+                "detail": "Use Google Authenticator or Authy before live orders.",
+            },
+            {
+                "id": "dhan",
+                "title": "Connect Dhan (paper first)",
+                "done": broker_status.get("dhan") not in (None, "not_connected"),
+                "href": "/settings#broker",
+                "detail": "Save encrypted API token. Live orders need Dhan static IP.",
+            },
+            {
+                "id": "paper",
+                "title": "Place a paper order",
+                "done": (orders_count or 0) > 0,
+                "href": "/orders",
+                "detail": "No real money. Confirms the order path.",
+            },
+            {
+                "id": "groww",
+                "title": "Optional: Connect Groww",
+                "done": broker_status.get("groww") not in (None, "not_connected"),
+                "href": "/settings#broker",
+                "detail": "Needs a Groww Trading API subscription.",
+            },
+        ],
     }

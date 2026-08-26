@@ -2,7 +2,10 @@
 
 import { AppShell } from "@/components/AppShell";
 import { api } from "@/lib/api";
+import Link from "next/link";
 import { useEffect, useState } from "react";
+
+type Step = { id: string; title: string; done: boolean; href: string; detail: string };
 
 type Summary = {
   user: string;
@@ -13,6 +16,8 @@ type Summary = {
   recent_signals: { symbol: string; action: string; confidence: number }[];
   recent_orders: { symbol: string; side: string; status: string; quantity: number }[];
   disclaimer: string;
+  mfa_enabled?: boolean;
+  next_steps?: Step[];
 };
 
 export default function DashboardPage() {
@@ -25,11 +30,41 @@ export default function DashboardPage() {
       .catch((err) => setError(err.message));
   }, []);
 
+  const steps = data?.next_steps || [];
+  const doneCount = steps.filter((s) => s.done).length;
+
   return (
     <AppShell>
       <h1 className="text-3xl font-semibold">Dashboard</h1>
       <p className="mt-1 text-slate-400">Welcome {data?.user || ""}</p>
       {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
+
+      <section className="mt-8 rounded-2xl border border-[#1d3542] bg-[#0d1b24]/70 p-5">
+        <h2 className="text-lg font-medium">Next product steps</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          After login: MFA → Dhan (paper) → paper order. Groww and live trading are optional.
+          {steps.length > 0 ? ` ${doneCount}/${steps.length} complete.` : ""}
+        </p>
+        <ol className="mt-4 space-y-3">
+          {steps.map((step, i) => (
+            <li key={step.id} className="flex items-start justify-between gap-3 rounded-xl border border-[#1d3542] p-3">
+              <div>
+                <p className="font-medium">
+                  {i + 1}. {step.title}{" "}
+                  <span className={step.done ? "text-[#2ee6a6]" : "text-slate-500"}>
+                    {step.done ? "Done" : "To do"}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-slate-400">{step.detail}</p>
+              </div>
+              <Link href={step.href} className="shrink-0 rounded-lg bg-[#2ee6a6] px-3 py-1.5 text-sm font-semibold text-[#071018]">
+                {step.done ? "View" : "Start"}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </section>
+
       <div className="mt-8 grid gap-4 md:grid-cols-4">
         {[
           ["Orders", data?.orders_count ?? "—"],

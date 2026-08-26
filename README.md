@@ -54,6 +54,8 @@ Default local database is SQLite (`backend/gnkalgo.db`). Set `DATABASE_URL` to P
 | `/webhooks` | TradingView-style inbound webhooks |
 | `/settings` | Broker connect (Dhan / Groww) + MFA |
 
+After login, use the dashboard **Next product steps** checklist. Details: `docs/NEXT-STEPS.md`.
+
 ## Security
 
 - Argon2 password hashing

@@ -81,6 +81,11 @@ class OrderService:
                 await log_audit(db, "order.paper_filled", user.id, request, {"order_id": str(order.id)})
             return order
 
+        if not user.mfa_enabled:
+            order.status = "REJECTED"
+            order.message = "Enable MFA in Settings before placing live orders"
+            return order
+
         conn_result = await db.execute(
             select(BrokerConnection).where(
                 BrokerConnection.user_id == user.id,

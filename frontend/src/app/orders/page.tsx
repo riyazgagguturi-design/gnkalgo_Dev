@@ -55,6 +55,7 @@ export default function OrdersPage() {
   return (
     <AppShell>
       <h1 className="text-3xl font-semibold">Orders</h1>
+      <p className="mt-2 text-sm text-slate-400">Start with paper orders (no broker call). Live Dhan/Groww requires MFA plus a connected broker.</p>
       <form onSubmit={onSubmit} className="mt-6 flex flex-wrap gap-3 rounded-2xl border border-[#1d3542] p-5">
         <input className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
         <select className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" value={side} onChange={(e) => setSide(e.target.value)}>

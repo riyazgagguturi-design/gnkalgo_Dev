@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [accessToken, setAccessToken] = useState("");
   const [clientId, setClientId] = useState("");
   const [qr, setQr] = useState("");
+  const [secret, setSecret] = useState("");
   const [mfaCode, setMfaCode] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -34,20 +35,22 @@ export default function SettingsPage() {
       method: "POST",
       body: JSON.stringify({ broker, access_token: accessToken, client_id: clientId || null }),
     }, true);
-    setMessage("Broker credentials saved (encrypted).");
+    setMessage(`${broker} credentials saved (encrypted). Paper-trade before going live.`);
+    setAccessToken("");
     await load();
   }
 
   async function setupMfa() {
     const res = await api<{ qr_uri: string; secret: string }>("/api/v1/auth/mfa/setup", { method: "POST" }, true);
     setQr(res.qr_uri);
-    setMessage(`TOTP secret: ${res.secret}`);
+    setSecret(res.secret);
+    setMessage("Add this secret in Google Authenticator or Authy, then enter a 6-digit code.");
   }
 
   async function enableMfa(e: FormEvent) {
     e.preventDefault();
     await api("/api/v1/auth/mfa/enable", { method: "POST", body: JSON.stringify({ code: mfaCode }) }, true);
-    setMessage("MFA enabled");
+    setMessage("MFA enabled. Live orders now allowed after Dhan is connected.");
     await load();
   }
 
@@ -58,15 +61,40 @@ export default function SettingsPage() {
       {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
       {message && <p className="mt-3 text-sm text-[#2ee6a6] break-all">{message}</p>}
 
-      <section className="mt-8 rounded-2xl border border-[#1d3542] p-5">
-        <h2 className="font-medium">Connect broker</h2>
+      <section id="mfa" className="mt-8 scroll-mt-8 rounded-2xl border border-[#1d3542] p-5">
+        <h2 className="font-medium">1. Multi-factor authentication</h2>
+        <p className="mt-2 text-sm text-slate-400">Required before live (real-money) orders. Paper orders work without MFA.</p>
+        {me?.mfa_enabled ? (
+          <p className="mt-4 text-[#2ee6a6]">MFA is on for this account.</p>
+        ) : (
+          <>
+            <button type="button" onClick={setupMfa} className="mt-4 rounded-lg border border-[#1d3542] px-3 py-2 text-sm">Generate TOTP secret</button>
+            {secret && <p className="mt-3 break-all text-xs text-slate-400">Secret: {secret}</p>}
+            {qr && <p className="mt-2 break-all text-xs text-slate-500">{qr}</p>}
+            <form onSubmit={enableMfa} className="mt-4 flex flex-wrap gap-3">
+              <input className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" placeholder="6-digit code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
+              <button className="rounded-xl bg-[#2ee6a6] px-4 py-2 font-semibold text-[#071018]">Enable MFA</button>
+            </form>
+          </>
+        )}
+      </section>
+
+      <section id="broker" className="mt-6 scroll-mt-8 rounded-2xl border border-[#1d3542] p-5">
+        <h2 className="font-medium">2. Connect Dhan (paper first)</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          From DhanHQ: API key / access token and client ID. Tokens are encrypted at rest.
+          Live Dhan orders need a <strong>static public IP</strong> whitelisted at Dhan (Oracle reserved IP).
+        </p>
+        <p className="mt-2 text-sm text-slate-400">
+          3. Optional Groww: needs a Groww Trading API subscription, then choose Groww below.
+        </p>
         <form onSubmit={connect} className="mt-4 grid gap-3 md:grid-cols-2">
           <select className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" value={broker} onChange={(e) => setBroker(e.target.value)}>
             <option value="dhan">Dhan</option>
-            <option value="groww">Groww</option>
+            <option value="groww">Groww (optional)</option>
           </select>
           <input className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" placeholder="Client ID" value={clientId} onChange={(e) => setClientId(e.target.value)} />
-          <input className="md:col-span-2 rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" placeholder="Access token / API key" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} />
+          <input className="md:col-span-2 rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" placeholder="Access token / API key" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} type="password" />
           <button className="rounded-xl bg-[#2ee6a6] px-4 py-2 font-semibold text-[#071018]">Save encrypted</button>
         </form>
         <ul className="mt-4 text-sm text-slate-400">
@@ -74,16 +102,6 @@ export default function SettingsPage() {
             <li key={b.id}>{b.broker} · {b.health_status}</li>
           ))}
         </ul>
-      </section>
-
-      <section className="mt-6 rounded-2xl border border-[#1d3542] p-5">
-        <h2 className="font-medium">Multi-factor authentication</h2>
-        <button onClick={setupMfa} className="mt-4 rounded-lg border border-[#1d3542] px-3 py-2 text-sm">Generate TOTP secret</button>
-        {qr && <p className="mt-3 break-all text-xs text-slate-400">{qr}</p>}
-        <form onSubmit={enableMfa} className="mt-4 flex gap-3">
-          <input className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" placeholder="6-digit code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
-          <button className="rounded-xl bg-[#2ee6a6] px-4 py-2 font-semibold text-[#071018]">Enable MFA</button>
-        </form>
       </section>
     </AppShell>
   );
