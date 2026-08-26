@@ -1,13 +1,12 @@
 function resolveApiBase(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL || "";
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
-    const onLocalhost = host === "localhost" || host === "127.0.0.1";
-    if (!onLocalhost && (!configured || configured.includes("localhost"))) {
-      return "";
+    if (host === "localhost" || host === "127.0.0.1") {
+      return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     }
+    return "";
   }
-  return configured || "http://localhost:8000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
 
 export type TokenBundle = {

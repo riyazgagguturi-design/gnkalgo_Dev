@@ -282,6 +282,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 | 525 SSL handshake | Wrong origin cert/key, or Full vs Flexible mismatch |
 | Email not arriving | SMTP in `.env`, restart `backend` container |
 | CORS errors | `ALLOWED_ORIGINS` must include exact `https://www.gnkalgo.com` |
+| **Failed to fetch / ERR_NAME_NOT_RESOLVED** | Do not use `api-dev.gnkalgo.com` unless that DNS A record exists. Leave `NEXT_PUBLIC_API_URL` empty. Register from https://www.gnkalgo.com so the browser calls `/api/v1/...` on the same host. |
+| **Method Not Allowed** on `/auth/register` | Opening the URL in a browser sends **GET**. Register is **POST** only. Use the Create account form, not the address bar. |
 | Old API URL in browser | Rebuild frontend image after changing `NEXT_PUBLIC_API_URL` |
 | `Permission denied` git clone | Use HTTPS + PAT, or add a deploy SSH key on the VM |
 

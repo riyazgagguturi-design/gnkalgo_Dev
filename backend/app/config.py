@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
 
     frontend_url: str = "http://localhost:3000"
-    allowed_origins: str = "http://localhost:3000,https://www.gnkalgo.com,https://gnkalgo.com"
+    allowed_origins: str = "http://localhost:3000,https://www.gnkalgo.com,https://gnkalgo.com,https://api.gnkalgo.com"
 
     smtp_host: str = ""
     smtp_port: int = 587
