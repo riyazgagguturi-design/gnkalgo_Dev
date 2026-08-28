@@ -15,6 +15,15 @@ def test_health():
         assert res.json()["status"] == "ok"
 
 
+def test_api_root():
+    with TestClient(app) as client:
+        res = client.get("/api/v1/")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["service"] == "gnkalgo-backend"
+        assert "endpoints" in body
+
+
 def test_register_verify_login():
     with TestClient(app) as client:
         email = f"devtrader-{uuid.uuid4().hex[:8]}@gnkalgo.com"
