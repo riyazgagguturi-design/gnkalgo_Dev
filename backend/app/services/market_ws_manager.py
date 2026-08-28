@@ -4,16 +4,13 @@ import random
 from datetime import datetime, timezone
 
 from app.services.candle_service import BASE_PRICES
-
-# Shared mock tick broadcaster for dev / when Dhan WS unavailable
 _subscribers: dict[str, set] = {}
 _prices: dict[str, float] = {}
 _task: asyncio.Task | None = None
 
 
 def _base_price(symbol: str) -> float:
-    from app.services.candle_service import BASE_PRICES as BP
-    return BP.get(symbol.upper(), 1000.0)
+    return BASE_PRICES.get(symbol.upper(), 1000.0)
 
 
 async def _broadcast_loop():
