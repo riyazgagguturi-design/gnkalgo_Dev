@@ -10,6 +10,8 @@ from slowapi.util import get_remote_address
 
 from sqlalchemy import text
 
+from app.api.market import router as market_router
+from app.api.portfolio import router as portfolio_router
 from app.api.admin import router as admin_router
 from app.api.auth import brokers_router, router as auth_router
 from app.api.billing import router as billing_router
@@ -148,6 +150,8 @@ for prefix in (API_PREFIX, "/v1"):
     app.include_router(webhooks_router, prefix=prefix)
     app.include_router(billing_router, prefix=prefix)
     app.include_router(admin_router, prefix=prefix)
+    app.include_router(market_router, prefix=prefix)
+    app.include_router(portfolio_router, prefix=prefix)
 
 
 @app.get("/api/v1")

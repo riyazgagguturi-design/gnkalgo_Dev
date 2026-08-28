@@ -1,21 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --background: #071018;
-  --foreground: #e8f1f4;
-  --panel: #0d1b24;
-  --line: #1d3542;
+  --background: #0d0f10;
+  --foreground: #e4e8eb;
+  --panel: #111315;
+  --panel-2: #161a1d;
+  --line: #252a2e;
+  --line-soft: #1a1d20;
   --accent: #2ee6a6;
   --accent-2: #3aa0ff;
-  --danger: #ff6b6b;
+  --danger: #ff4d4f;
+  --profit: #22c55e;
+  --loss: #ef4444;
+  --muted: #8b949a;
+  --ticker-height: 40px;
 }
 
 body {
-  background: radial-gradient(1200px 600px at 10% -10%, #123348 0%, transparent 50%),
-    radial-gradient(900px 500px at 100% 0%, #0c2a22 0%, transparent 45%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 input,
@@ -27,4 +33,45 @@ button {
 
 a {
   color: inherit;
+}
+
+/* Ticker marquee */
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-track {
+  animation: ticker-scroll 90s linear infinite;
+}
+
+.ticker-wrap:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+.ticker-wrap {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ticker-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+/* Compact tables */
+.terminal-table th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.terminal-table td {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }

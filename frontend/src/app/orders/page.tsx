@@ -1,97 +1,141 @@
 "use client";
 
 import { AppShell } from "@/components/AppShell";
+import { OrderDetailsDrawer } from "@/components/orders/OrderDetailsDrawer";
+import { OrdersTable } from "@/components/orders/OrdersTable";
+import { QuickOrderPanel } from "@/components/orders/QuickOrderPanel";
+import type { UnifiedOrder } from "@/lib/orders";
+import {
+  ErrorBanner,
+  PageHeader,
+  Panel,
+  TabBar,
+  TerminalInput,
+  TerminalSelect,
+} from "@/components/ui/terminal";
 import { api } from "@/lib/api";
-import { FormEvent, useEffect, useState } from "react";
+import {
+  brokerToUnified,
+  filterOrdersByTab,
+  localToUnified,
+  type LocalOrder,
+} from "@/lib/orders";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-type Order = {
-  id: string;
-  symbol: string;
-  side: string;
-  quantity: number;
-  status: string;
-  broker: string;
-  source: string;
-  message?: string | null;
-  created_at: string;
-};
+const TABS = [
+  { id: "all", label: "All" },
+  { id: "pending", label: "Pending" },
+  { id: "executed", label: "Executed" },
+  { id: "rejected", label: "Rejected" },
+  { id: "cancelled", label: "Cancelled" },
+];
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [symbol, setSymbol] = useState("RELIANCE");
-  const [side, setSide] = useState("BUY");
-  const [qty, setQty] = useState(1);
+  const [localOrders, setLocalOrders] = useState<LocalOrder[]>([]);
+  const [brokerItems, setBrokerItems] = useState<Record<string, unknown>[]>([]);
+  const [brokerConnected, setBrokerConnected] = useState(false);
+  const [tab, setTab] = useState("all");
+  const [sideFilter, setSideFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<UnifiedOrder | null>(null);
+  const [repeatSymbol, setRepeatSymbol] = useState<string | undefined>();
+  const [repeatSide, setRepeatSide] = useState<"BUY" | "SELL" | undefined>();
 
-  async function load() {
-    const rows = await api<Order[]>("/api/v1/orders/", {}, true);
-    setOrders(rows);
-  }
-
-  useEffect(() => {
-    load().catch((err) => setError(err.message));
-  }, []);
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  const load = useCallback(async () => {
     setError("");
     try {
-      await api("/api/v1/orders/", {
-        method: "POST",
-        body: JSON.stringify({
-          symbol,
-          side,
-          quantity: Number(qty),
-          paper_mode: true,
-          broker: "paper",
-        }),
-      }, true);
-      await load();
+      const local = await api<LocalOrder[]>("/api/v1/orders/", {}, true);
+      setLocalOrders(local);
+      const brokerRes = await api<{
+        connected: boolean;
+        items: Record<string, unknown>[];
+        error?: string;
+      }>("/api/v1/portfolio/broker-orders?broker=dhan", {}, true);
+      setBrokerConnected(brokerRes.connected);
+      setBrokerItems(brokerRes.items || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Order failed");
+      setError(err instanceof Error ? err.message : "Failed to load orders");
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const unified = useMemo(() => {
+    const local = localOrders.map(localToUnified);
+    const broker = brokerItems.map((r, i) => brokerToUnified(r, i));
+    const seen = new Set(local.map((o) => o.brokerOrderId).filter(Boolean));
+    const merged = [...local];
+    for (const b of broker) {
+      if (!seen.has(b.brokerOrderId)) merged.push(b);
+    }
+    return merged.sort((a, b) => (b.orderTime || "").localeCompare(a.orderTime || ""));
+  }, [localOrders, brokerItems]);
+
+  const filtered = useMemo(() => {
+    let rows = filterOrdersByTab(unified, tab);
+    if (sideFilter !== "all") {
+      rows = rows.filter((o) => o.side.toUpperCase() === sideFilter);
+    }
+    if (search.trim()) {
+      const q = search.trim().toUpperCase();
+      rows = rows.filter((o) => o.symbol.toUpperCase().includes(q));
+    }
+    return rows;
+  }, [unified, tab, sideFilter, search]);
 
   return (
     <AppShell>
-      <h1 className="text-3xl font-semibold">Orders</h1>
-      <p className="mt-2 text-sm text-slate-400">Start with paper orders (no broker call). Live Dhan/Groww requires MFA plus a connected broker.</p>
-      <form onSubmit={onSubmit} className="mt-6 flex flex-wrap gap-3 rounded-2xl border border-[#1d3542] p-5">
-        <input className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
-        <select className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" value={side} onChange={(e) => setSide(e.target.value)}>
-          <option>BUY</option>
-          <option>SELL</option>
-        </select>
-        <input className="w-24 rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2" type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
-        <button className="rounded-xl bg-[#2ee6a6] px-4 py-2 font-semibold text-[#071018]">Paper order</button>
-      </form>
-      {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-[#1d3542]">
-        <table className="w-full text-sm">
-          <thead className="bg-[#123348] text-left">
-            <tr>
-              <th className="p-3">Symbol</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Status</th>
-              <th>Source</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((o) => (
-              <tr key={o.id} className="border-t border-[#1d3542]">
-                <td className="p-3">{o.symbol}</td>
-                <td>{o.side}</td>
-                <td>{o.quantity}</td>
-                <td>{o.status}</td>
-                <td>{o.source}</td>
-                <td className="text-slate-400">{o.message}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <PageHeader
+        title="Orders"
+        subtitle={brokerConnected ? "GnKAlgo + Dhan broker orders" : "Paper orders · Connect Dhan for live sync"}
+        action={
+          <button
+            type="button"
+            onClick={load}
+            className="rounded border border-[var(--line)] px-2.5 py-1 text-[11px] hover:bg-[var(--panel-2)]"
+          >
+            Refresh
+          </button>
+        }
+      />
+      {error && <ErrorBanner message={error} />}
+
+      <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
+        <Panel>
+          <TabBar tabs={TABS} active={tab} onChange={setTab} />
+          <div className="flex flex-wrap gap-2 p-2 border-b border-[var(--line)]">
+            <TerminalInput
+              placeholder="Search symbol"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-32"
+            />
+            <TerminalSelect value={sideFilter} onChange={(e) => setSideFilter(e.target.value)}>
+              <option value="all">All sides</option>
+              <option value="BUY">Buy</option>
+              <option value="SELL">Sell</option>
+            </TerminalSelect>
+          </div>
+          <OrdersTable
+            orders={filtered}
+            onView={setSelected}
+            onRepeat={(o) => {
+              setRepeatSymbol(o.symbol);
+              setRepeatSide(o.side === "SELL" ? "SELL" : "BUY");
+            }}
+          />
+        </Panel>
+        <QuickOrderPanel
+          defaultSymbol={repeatSymbol}
+          defaultSide={repeatSide}
+          onSuccess={load}
+        />
       </div>
+
+      <OrderDetailsDrawer order={selected} onClose={() => setSelected(null)} />
     </AppShell>
   );
 }

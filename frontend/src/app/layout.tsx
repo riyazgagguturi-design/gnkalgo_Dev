@@ -16,8 +16,8 @@ export const metadata: Metadata = {
   title: "GNK ALGO — Intelligence behind every trade",
   description: "Algo platform for the Indian stock market. Connect Dhan and Groww, run strategies, AI signals, and webhooks.",
   icons: {
-    icon: "/logo.svg",
-    apple: "/logo.svg",
+    icon: "/gnkalgo-brand.png",
+    apple: "/gnkalgo-brand.png",
   },
 };
 

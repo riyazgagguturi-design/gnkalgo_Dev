@@ -1,6 +1,8 @@
 "use client";
 
 import { AppShell } from "@/components/AppShell";
+import { AISignalTable } from "@/components/ai/AISignalTable";
+import { ErrorBanner, PageHeader, Panel } from "@/components/ui/terminal";
 import { api } from "@/lib/api";
 import { useEffect, useState } from "react";
 
@@ -41,36 +43,31 @@ export default function SignalsPage() {
 
   return (
     <AppShell>
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold">AI Signals</h1>
-        <button onClick={generate} className="rounded-xl bg-[#2ee6a6] px-4 py-2 font-semibold text-[#071018]">
-          {loading ? "Generating..." : "Generate"}
-        </button>
-      </div>
-      <p className="mt-2 text-sm text-slate-400">Not investment advice. Model uses RSI, MACD, volume features.</p>
-      {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-[#1d3542]">
-        <table className="w-full text-sm">
-          <thead className="bg-[#123348] text-left">
-            <tr>
-              <th className="p-3">Symbol</th>
-              <th>Action</th>
-              <th>Confidence</th>
-              <th>Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((s) => (
-              <tr key={s.id} className="border-t border-[#1d3542]">
-                <td className="p-3">{s.symbol}</td>
-                <td className={s.action === "BUY" ? "text-[#2ee6a6]" : s.action === "SELL" ? "text-[#ff6b6b]" : ""}>{s.action}</td>
-                <td>{(s.confidence * 100).toFixed(1)}%</td>
-                <td>{s.price ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <PageHeader
+        title="AI Signals"
+        subtitle="GnKAlgo ML signals — never auto-executed without an approved strategy"
+        action={
+          <button
+            type="button"
+            onClick={generate}
+            disabled={loading}
+            className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
+          >
+            {loading ? "Generating…" : "Generate"}
+          </button>
+        }
+      />
+      {error && <ErrorBanner message={error} />}
+      <Panel>
+        {items.length ? (
+          <AISignalTable items={items} />
+        ) : (
+          <p className="p-4 text-xs text-[var(--muted)]">No signals yet. Click Generate to run the model.</p>
+        )}
+      </Panel>
+      <p className="mt-3 text-[10px] text-[var(--muted)]">
+        Not investment advice. Signals use RSI, MACD, and volume features. STRONG BUY / BUY / NEUTRAL / SELL / STRONG SELL mapping applies to model output.
+      </p>
     </AppShell>
   );
 }

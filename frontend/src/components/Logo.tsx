@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 type LogoProps = {
@@ -5,18 +6,32 @@ type LogoProps = {
   size?: number;
   showWordmark?: boolean;
   className?: string;
+  variant?: "full" | "mark";
 };
 
-export function Logo({ href = "/", size = 40, showWordmark = true, className = "" }: LogoProps) {
+export function Logo({
+  href = "/",
+  size = 40,
+  showWordmark = true,
+  className = "",
+  variant = "full",
+}: LogoProps) {
   const mark = (
-    <span className={`inline-flex items-center gap-3 ${className}`}>
-      <img src="/logo.svg" alt="GNK ALGO" width={size} height={size} className="shrink-0" />
-      {showWordmark && (
-        <span className="leading-tight">
-          <span className="block text-lg font-semibold tracking-wide text-white">
-            GNK <span className="bg-gradient-to-b from-[#2ee6a6] to-[#3aa0ff] bg-clip-text text-transparent">ALGO</span>
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+      <Image
+        src="/gnkalgo-brand.png"
+        alt="GnKAlgo"
+        width={size}
+        height={size}
+        className="shrink-0 rounded-md object-cover"
+        priority
+      />
+      {showWordmark && variant === "full" && (
+        <span className="leading-tight hidden sm:block">
+          <span className="block text-sm font-semibold tracking-wide text-white">
+            GNK <span className="text-[var(--accent)]">ALGO</span>
           </span>
-          <span className="hidden text-[10px] uppercase tracking-[0.18em] text-slate-400 sm:block">
+          <span className="text-[9px] uppercase tracking-[0.16em] text-[var(--muted)]">
             Intelligence behind every trade
           </span>
         </span>

@@ -1,11 +1,23 @@
 "use client";
 
 import { AppShell } from "@/components/AppShell";
+import { AISignalTable } from "@/components/ai/AISignalTable";
+import { HoldingsTable } from "@/components/holdings/HoldingsTable";
+import { OrdersTable } from "@/components/orders/OrdersTable";
+import { PositionsTable } from "@/components/positions/PositionsTable";
+import {
+  ErrorBanner,
+  PageHeader,
+  Panel,
+  SummaryTile,
+} from "@/components/ui/terminal";
 import { api } from "@/lib/api";
+import { fmtINR } from "@/lib/format";
+import { normalizeHolding } from "@/lib/holdings";
+import { localToUnified, type LocalOrder } from "@/lib/orders";
+import { normalizePosition } from "@/lib/portfolio";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-
-type Step = { id: string; title: string; done: boolean; href: string; detail: string };
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Summary = {
   user: string;
@@ -15,120 +27,135 @@ type Summary = {
   broker_status: Record<string, string>;
   recent_signals: { symbol: string; action: string; confidence: number }[];
   recent_orders: { symbol: string; side: string; status: string; quantity: number }[];
-  disclaimer: string;
-  mfa_enabled?: boolean;
-  next_steps?: Step[];
   subscription?: { active: boolean; plan_code?: string; expires_at?: string };
 };
 
-export default function DashboardPage() {
-  const [data, setData] = useState<Summary | null>(null);
-  const [error, setError] = useState("");
-  const [renewal, setRenewal] = useState<{ pay_url: string; amount_inr: number; plan_label: string } | null>(null);
+type Signal = {
+  id: string;
+  symbol: string;
+  action: string;
+  confidence: number;
+  price?: number | null;
+  created_at: string;
+};
 
-  useEffect(() => {
-    api<Summary>("/api/v1/dashboard/summary", {}, true)
-      .then(setData)
-      .catch((err) => setError(err.message));
-    api<{ pending_renewal: { pay_url: string; amount_inr: number; plan_label: string } | null }>(
-      "/api/v1/billing/me",
-      {},
-      true,
-    )
-      .then((b) => setRenewal(b.pending_renewal))
-      .catch(() => setRenewal(null));
+export default function DashboardPage() {
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [funds, setFunds] = useState<Record<string, unknown> | null>(null);
+  const [positions, setPositions] = useState<Record<string, unknown>[]>([]);
+  const [holdings, setHoldings] = useState<Record<string, unknown>[]>([]);
+  const [orders, setOrders] = useState<LocalOrder[]>([]);
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const [dash, fundsRes, posRes, holdRes, ordRes, sigRes] = await Promise.all([
+        api<Summary>("/api/v1/dashboard/summary", {}, true),
+        api<{ data: Record<string, unknown> | null }>("/api/v1/portfolio/funds?broker=dhan", {}, true),
+        api<{ items: Record<string, unknown>[] }>("/api/v1/portfolio/positions?broker=dhan", {}, true),
+        api<{ items: Record<string, unknown>[] }>("/api/v1/portfolio/holdings?broker=dhan", {}, true),
+        api<LocalOrder[]>("/api/v1/orders/", {}, true),
+        api<Signal[]>("/api/v1/signals/", {}, true),
+      ]);
+      setSummary(dash);
+      setFunds(fundsRes.data);
+      setPositions(posRes.items || []);
+      setHoldings(holdRes.items || []);
+      setOrders(ordRes.slice(0, 5));
+      setSignals(sigRes.slice(0, 5));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load dashboard");
+    }
   }, []);
 
-  const steps = data?.next_steps || [];
-  const doneCount = steps.filter((s) => s.done).length;
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const normPositions = useMemo(
+    () => positions.map((r, i) => normalizePosition(r, i)).filter((p) => p.netQty !== 0).slice(0, 5),
+    [positions],
+  );
+  const normHoldings = useMemo(() => holdings.map((r, i) => normalizeHolding(r, i)).slice(0, 5), [holdings]);
+  const recentOrders = useMemo(() => orders.map(localToUnified), [orders]);
+
+  const portfolioValue = normHoldings.reduce((s, h) => s + (h.currentValue ?? 0), 0);
+  const dayPnl = normPositions.reduce((s, p) => s + p.unrealizedPnl, 0) +
+    normHoldings.reduce((s, h) => s + (h.dayPnl ?? 0), 0);
+
+  const available = funds
+    ? Number(funds.availableBalance ?? funds.availabelBalance ?? funds.sodLimit ?? 0)
+    : null;
+  const usedMargin = funds ? Number(funds.utilizedAmount ?? funds.usedMargin ?? 0) : null;
 
   return (
     <AppShell>
-      <h1 className="text-3xl font-semibold">Dashboard</h1>
-      <p className="mt-1 text-slate-400">Welcome {data?.user || ""}</p>
-      {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
-      {renewal && (
-        <div className="mt-4 rounded-xl border border-[#2ee6a6]/40 bg-[#0d1b24] p-4 text-sm">
-          <p className="font-medium text-[#2ee6a6]">Auto-renew: pay ₹{renewal.amount_inr} ({renewal.plan_label})</p>
-          <a href={renewal.pay_url} className="mt-2 inline-block text-[#3aa0ff]">
-            Open UPI payment page →
-          </a>
-        </div>
-      )}
-      <p className="mt-3 text-sm text-slate-400">
-        {data?.subscription?.active
-          ? `Plan ${data.subscription.plan_code} until ${data.subscription.expires_at}`
-          : "No active plan. Share https://www.gnkalgo.com/subscribe"}
-        {" · "}
-        <Link href="/subscribe" className="text-[#2ee6a6]">Buy with UPI</Link>
-      </p>
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Welcome ${summary?.user ?? ""} · GnKAlgo terminal`}
+        action={
+          <button type="button" onClick={load} className="rounded border border-[var(--line)] px-2.5 py-1 text-[11px]">
+            Refresh
+          </button>
+        }
+      />
+      {error && <ErrorBanner message={error} />}
 
-      <section className="mt-8 rounded-2xl border border-[#1d3542] bg-[#0d1b24]/70 p-5">
-        <h2 className="text-lg font-medium">Next product steps</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          After login: MFA → Dhan (paper) → paper order. Groww and live trading are optional.
-          {steps.length > 0 ? ` ${doneCount}/${steps.length} complete.` : ""}
-        </p>
-        <ol className="mt-4 space-y-3">
-          {steps.map((step, i) => (
-            <li key={step.id} className="flex items-start justify-between gap-3 rounded-xl border border-[#1d3542] p-3">
-              <div>
-                <p className="font-medium">
-                  {i + 1}. {step.title}{" "}
-                  <span className={step.done ? "text-[#2ee6a6]" : "text-slate-500"}>
-                    {step.done ? "Done" : "To do"}
-                  </span>
-                </p>
-                <p className="mt-1 text-sm text-slate-400">{step.detail}</p>
-              </div>
-              <Link href={step.href} className="shrink-0 rounded-lg bg-[#2ee6a6] px-3 py-1.5 text-sm font-semibold text-[#071018]">
-                {step.done ? "View" : "Start"}
-              </Link>
-            </li>
-          ))}
-        </ol>
-      </section>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 mb-3">
+        <SummaryTile label="Available Funds" value={available != null ? fmtINR(available) : "—"} />
+        <SummaryTile label="Used Margin" value={usedMargin != null ? fmtINR(usedMargin) : "—"} />
+        <SummaryTile label="Today's P&L" value={fmtINR(dayPnl)} pnl={dayPnl} />
+        <SummaryTile label="Portfolio Value" value={fmtINR(portfolioValue)} />
+      </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Panel title="Open Positions" action={<Link href="/positions" className="text-[10px] text-[var(--accent)]">View all</Link>}>
+          {normPositions.length ? (
+            <PositionsTable positions={normPositions} onExit={() => {}} />
+          ) : (
+            <p className="p-3 text-xs text-[var(--muted)]">No open positions</p>
+          )}
+        </Panel>
+        <Panel title="Recent Orders" action={<Link href="/orders" className="text-[10px] text-[var(--accent)]">View all</Link>}>
+          {recentOrders.length ? (
+            <OrdersTable orders={recentOrders} onView={() => {}} onRepeat={() => {}} />
+          ) : (
+            <p className="p-3 text-xs text-[var(--muted)]">No orders yet</p>
+          )}
+        </Panel>
+        <Panel title="AI Signals" action={<Link href="/signals" className="text-[10px] text-[var(--accent)]">View all</Link>}>
+          {signals.length ? <AISignalTable items={signals} /> : (
+            <p className="p-3 text-xs text-[var(--muted)]">Generate signals from AI Signals</p>
+          )}
+        </Panel>
+        <Panel title="Watchlist" action={<Link href="/watchlist" className="text-[10px] text-[var(--accent)]">Manage</Link>}>
+          {normHoldings.length ? (
+            <HoldingsTable items={normHoldings} />
+          ) : (
+            <p className="p-3 text-xs text-[var(--muted)]">Add symbols to your watchlist</p>
+          )}
+        </Panel>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 text-center">
         {[
-          ["Orders", data?.orders_count ?? "—"],
-          ["Strategies", data?.active_strategies ?? "—"],
-          ["Signals", data?.signals_count ?? "—"],
-          ["Dhan", data?.broker_status.dhan ?? "—"],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-[#1d3542] bg-[#0d1b24]/70 p-5">
-            <p className="text-sm text-slate-400">{label}</p>
-            <p className="mt-2 text-2xl font-semibold">{String(value)}</p>
-          </div>
+          ["Orders", summary?.orders_count, "/orders"],
+          ["Strategies", summary?.active_strategies, "/strategies"],
+          ["Signals", summary?.signals_count, "/signals"],
+          ["Dhan", summary?.broker_status?.dhan ?? "—", "/broker"],
+        ].map(([label, value, href]) => (
+          <Link
+            key={label as string}
+            href={href as string}
+            className="rounded border border-[var(--line)] bg-[var(--panel-2)] px-2 py-2 hover:bg-[var(--panel)]"
+          >
+            <p className="text-[10px] uppercase text-[var(--muted)]">{label as string}</p>
+            <p className="text-sm font-semibold text-white">{String(value ?? "—")}</p>
+          </Link>
         ))}
       </div>
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-[#1d3542] p-5">
-          <h2 className="font-medium">Recent orders</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {(data?.recent_orders || []).map((o, i) => (
-              <li key={i} className="flex justify-between text-slate-300">
-                <span>{o.side} {o.symbol} × {o.quantity}</span>
-                <span>{o.status}</span>
-              </li>
-            ))}
-            {!data?.recent_orders?.length && <li className="text-slate-500">No orders yet</li>}
-          </ul>
-        </div>
-        <div className="rounded-2xl border border-[#1d3542] p-5">
-          <h2 className="font-medium">Recent AI signals</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {(data?.recent_signals || []).map((s, i) => (
-              <li key={i} className="flex justify-between text-slate-300">
-                <span>{s.symbol} {s.action}</span>
-                <span>{(s.confidence * 100).toFixed(0)}%</span>
-              </li>
-            ))}
-            {!data?.recent_signals?.length && <li className="text-slate-500">Generate signals from AI Signals</li>}
-          </ul>
-        </div>
-      </div>
-      <p className="mt-6 text-xs text-slate-500">{data?.disclaimer}</p>
     </AppShell>
   );
 }

@@ -30,12 +30,15 @@ class OrderResponse(BaseModel):
     side: str
     quantity: int
     order_type: str
+    product_type: str = "INTRADAY"
     price: float | None
     status: str
     broker: str
+    broker_order_id: str | None = None
     source: str
     message: str | None
     created_at: datetime
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
