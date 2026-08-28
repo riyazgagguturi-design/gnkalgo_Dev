@@ -59,6 +59,8 @@ def upi_intents(amount: int, reference: str) -> dict:
 def checkout_payload(payment: Payment, intents: dict) -> dict:
     plan = get_plan(payment.plan_code)
     pay_url = f"{settings.frontend_url.rstrip('/')}/subscribe/pay?id={payment.id}"
+    vpa = intents.get("vpa") or settings.upi_vpa
+    payee = intents.get("payee") or settings.upi_payee_name
     return {
         "payment_id": str(payment.id),
         "reference": payment.reference,
@@ -70,6 +72,14 @@ def checkout_payload(payment: Payment, intents: dict) -> dict:
         "intents": intents,
         "pay_url": pay_url,
         "support_email": settings.support_email,
+        "payment_instruction": {
+            "amount_inr": payment.amount_inr,
+            "vpa": vpa,
+            "payee": payee,
+            "reference": payment.reference,
+            "send_line": f"Send exactly ₹{payment.amount_inr} to {vpa} ({payee}).",
+            "reference_line": f"Reference: {payment.reference}",
+        },
         "instructions": (
             "Auto-renewal: pay exact amount via UPI, then submit UTR. "
             "Your plan extends from the current expiry date."

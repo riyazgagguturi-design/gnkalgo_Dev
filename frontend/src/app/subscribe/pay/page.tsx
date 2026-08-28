@@ -1,10 +1,21 @@
 "use client";
 
+import { PaymentInstructions } from "@/components/billing/PaymentInstructions";
+import { CopyButton } from "@/components/billing/CopyButton";
 import { api } from "@/lib/api";
 import { Logo } from "@/components/Logo";
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+
+type PaymentInstruction = {
+  amount_inr: number;
+  vpa: string;
+  payee: string;
+  reference: string;
+  send_line: string;
+  reference_line: string;
+};
 
 type Checkout = {
   payment_id: string;
@@ -16,25 +27,24 @@ type Checkout = {
   is_renewal?: boolean;
   pay_url?: string;
   intents: { upi: string; gpay: string; phonepe: string; paytm: string; vpa: string; payee: string };
+  payment_instruction?: PaymentInstruction;
   instructions?: string;
   support_email?: string;
   admin_url?: string;
 };
 
-function CopyBtn({ text, label }: { text: string; label: string }) {
-  const [ok, setOk] = useState(false);
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <button
-      type="button"
-      onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setOk(true);
-        setTimeout(() => setOk(false), 2000);
-      }}
-      className="rounded-lg border border-[#1d3542] px-2 py-1 text-xs text-slate-300 hover:bg-[#123348]"
-    >
-      {ok ? "Copied" : label}
-    </button>
+    <div className="grid gap-1 sm:grid-cols-[140px_1fr] sm:gap-4 sm:items-start py-1">
+      <dt className="text-slate-400 text-sm shrink-0">{label}</dt>
+      <dd className="min-w-0 overflow-visible text-sm">{children}</dd>
+    </div>
   );
 }
 
@@ -100,6 +110,11 @@ function PayInner() {
     );
   }
 
+  const vpa = checkout.payment_instruction?.vpa ?? checkout.intents.vpa;
+  const payee = checkout.payment_instruction?.payee ?? checkout.intents.payee;
+  const reference = checkout.payment_instruction?.reference ?? checkout.reference;
+  const amount = checkout.payment_instruction?.amount_inr ?? checkout.amount_inr;
+
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(checkout.intents.upi)}`;
   const apps = [
     { href: checkout.intents.phonepe, label: "Open PhonePe" },
@@ -110,65 +125,77 @@ function PayInner() {
   const support = checkout.support_email || "support@gnkalgo.com";
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
+    <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12 overflow-visible">
       <Logo href="/subscribe" size={44} />
       <h1 className="mt-6 text-2xl font-semibold">
         {checkout.is_renewal ? "Renew subscription" : "Complete UPI payment"}
       </h1>
       <p className="mt-2 text-slate-400">UPI only · PhonePe · Google Pay · Paytm</p>
 
-      <section className="mt-6 rounded-2xl border border-[#1d3542] bg-[#0d1b24]/70 p-5">
+      <PaymentInstructions
+        className="mt-6"
+        amount_inr={amount}
+        vpa={vpa}
+        payee={payee}
+        reference={reference}
+      />
+
+      <section className="mt-6 rounded-2xl border border-[#1d3542] bg-[#0d1b24]/70 p-5 overflow-visible">
         <h2 className="text-sm font-medium text-[#2ee6a6]">Order details</h2>
-        <dl className="mt-3 grid gap-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-slate-400">Plan</dt>
-            <dd className="font-medium">{checkout.plan_label || checkout.plan_code}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-slate-400">Duration</dt>
-            <dd>{checkout.days} day{checkout.days > 1 ? "s" : ""}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-slate-400">Amount (pay exactly)</dt>
-            <dd className="text-lg font-semibold text-[#2ee6a6]">₹{checkout.amount_inr}</dd>
-          </div>
-          <div className="flex justify-between gap-4 items-center">
-            <dt className="text-slate-400">UPI ID (VPA)</dt>
-            <dd className="flex items-center gap-2">
-              <span className="font-mono text-[#2ee6a6]">{checkout.intents.vpa}</span>
-              <CopyBtn text={checkout.intents.vpa} label="Copy VPA" />
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-slate-400">Payee name</dt>
-            <dd>{checkout.intents.payee}</dd>
-          </div>
-          <div className="flex justify-between gap-4 items-center">
-            <dt className="text-slate-400">Payment reference</dt>
-            <dd className="flex items-center gap-2">
-              <span className="font-mono text-xs">{checkout.reference}</span>
-              <CopyBtn text={checkout.reference} label="Copy ref" />
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-slate-400">Payment ID</dt>
-            <dd className="font-mono text-xs text-slate-500">{checkout.payment_id}</dd>
-          </div>
+        <dl className="mt-3 space-y-2">
+          <DetailRow label="Plan">
+            <span className="font-medium">{checkout.plan_label || checkout.plan_code}</span>
+          </DetailRow>
+          <DetailRow label="Duration">
+            <span>{checkout.days} day{checkout.days > 1 ? "s" : ""}</span>
+          </DetailRow>
+          <DetailRow label="Amount (pay exactly)">
+            <span className="text-lg font-semibold text-[#2ee6a6]">₹{checkout.amount_inr}</span>
+          </DetailRow>
+          <DetailRow label="UPI ID (VPA)">
+            <span className="inline-flex flex-wrap items-center gap-2 overflow-visible">
+              <span className="font-mono font-semibold whitespace-nowrap shrink-0 overflow-visible text-[#2ee6a6]">
+                {vpa}
+              </span>
+              <CopyButton text={vpa} label="Copy UPI ID" />
+            </span>
+          </DetailRow>
+          <DetailRow label="Payee name">
+            <span>{payee}</span>
+          </DetailRow>
+          <DetailRow label="Payment reference">
+            <span className="inline-flex flex-wrap items-center gap-2 overflow-visible">
+              <span className="font-mono text-xs font-semibold whitespace-nowrap shrink-0 overflow-visible">
+                {reference}
+              </span>
+              <CopyButton text={reference} label="Copy reference" />
+            </span>
+          </DetailRow>
+          <DetailRow label="Payment ID">
+            <span className="font-mono text-xs text-slate-500 break-all">{checkout.payment_id}</span>
+          </DetailRow>
         </dl>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-[#1d3542] p-5">
+      <section className="mt-6 rounded-2xl border border-[#1d3542] p-5 overflow-visible">
         <h2 className="font-medium">How to pay</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-300">
           <li>Scan the QR code or tap your UPI app below.</li>
-          <li>Pay <strong>exactly ₹{checkout.amount_inr}</strong> — not less or more.</li>
-          <li>UPI ID: <strong>{checkout.intents.vpa}</strong> · Name: <strong>{checkout.intents.payee}</strong></li>
+          <li>
+            Pay <strong>exactly ₹{checkout.amount_inr}</strong> — not less or more.
+          </li>
+          <li className="break-words">
+            UPI ID:{" "}
+            <strong className="font-mono font-semibold whitespace-nowrap shrink-0">{vpa}</strong>
+            {" · "}
+            Name: <strong>{payee}</strong>
+          </li>
           <li>After payment, open PhonePe / GPay / Paytm → Transaction history → copy <strong>UTR</strong> or <strong>UPI Ref No.</strong></li>
           <li>Paste UTR below and tap <strong>I have paid</strong>.</li>
           <li>We confirm manually (usually within a few hours). You get access when status is confirmed.</li>
         </ol>
         {checkout.instructions && (
-          <p className="mt-3 text-xs text-slate-500">{checkout.instructions}</p>
+          <p className="mt-3 text-xs text-slate-500 break-words">{checkout.instructions}</p>
         )}
       </section>
 

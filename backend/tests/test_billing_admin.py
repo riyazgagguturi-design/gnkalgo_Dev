@@ -52,6 +52,10 @@ def test_plans_share_url_and_upi_checkout():
         assert data["intents"]["phonepe"].startswith("phonepe://")
         assert data["intents"]["paytm"].startswith("paytmmp://")
         assert "upi://pay" in data["intents"]["upi"]
+        assert data["intents"]["vpa"] == "gnkalgo@oksbi"
+        assert data["payment_instruction"]["vpa"] == "gnkalgo@oksbi"
+        assert "gnkalgo@oksbi" in data["payment_instruction"]["send_line"]
+        assert data["payment_instruction"]["reference"] == data["reference"]
 
         payment_id = data["payment_id"]
         utr = client.post(
