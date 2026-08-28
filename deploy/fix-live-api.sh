@@ -23,5 +23,5 @@ sudo systemctl reload nginx
 docker compose -f docker-compose.prod.yml build --no-cache frontend backend
 docker compose -f docker-compose.prod.yml up -d
 
-echo "If register 404s on /v1/auth/register, Nginx stripped /api. Copy nginx conf and rebuild backend."
-echo "Optional Cloudflare DNS: A record name=api-dev content=this server public IP (Proxied)."
+echo "If /health or /docs still 404, run: ./scripts/fix-public-urls.sh"
+echo "Test: curl -s https://www.gnkalgo.com/health && curl -s https://www.gnkalgo.com/api/v1/"
