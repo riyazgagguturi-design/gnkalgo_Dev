@@ -1,4 +1,5 @@
 import httpx
+from datetime import datetime, timedelta
 
 from app.brokers.base import BrokerAdapter, OrderRequest, OrderResponse
 from app.config import settings
@@ -83,6 +84,61 @@ class DhanAdapter(BrokerAdapter):
 
     async def get_market_quote(self, symbols: list[str]) -> dict:
         return await self._request("POST", "/marketfeed/ltp", json={"NSE_EQ": symbols})
+
+    async def get_historical_candles(
+        self,
+        security_id: str,
+        exchange: str,
+        segment: str,
+        interval: str,
+    ) -> list[dict]:
+        """Fetch historical OHLC from Dhan charts API."""
+        seg_map = {
+            "INDEX": "IDX_I",
+            "EQUITY": "NSE_EQ",
+        }
+        exchange_segment = seg_map.get(segment, "NSE_EQ")
+        if exchange == "BSE":
+            exchange_segment = "BSE_EQ" if segment == "EQUITY" else "IDX_I"
+
+        days = 5 if interval in ("1m", "3m", "5m", "15m", "30m", "1H", "4H") else 365
+        end = datetime.now()
+        start = end - timedelta(days=days)
+
+        payload = {
+            "securityId": str(security_id),
+            "exchangeSegment": exchange_segment,
+            "instrument": "INDEX" if segment == "INDEX" else "EQUITY",
+            "expiryCode": 0,
+            "oi": False,
+            "fromDate": start.strftime("%Y-%m-%d"),
+            "toDate": end.strftime("%Y-%m-%d"),
+        }
+        data = await self._request("POST", "/charts/historical", json=payload)
+        opens = data.get("open", []) or []
+        highs = data.get("high", []) or []
+        lows = data.get("low", []) or []
+        closes = data.get("close", []) or []
+        volumes = data.get("volume", []) or []
+        times = data.get("timestamp", []) or data.get("start_Time", []) or []
+
+        candles = []
+        for i in range(min(len(closes), len(times))):
+            ts = times[i]
+            if isinstance(ts, str):
+                ts = int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp())
+            elif ts > 1e12:
+                ts = int(ts / 1000)
+            vol = volumes[i] if i < len(volumes) else None
+            candles.append({
+                "time": int(ts),
+                "open": float(opens[i]) if i < len(opens) else float(closes[i]),
+                "high": float(highs[i]) if i < len(highs) else float(closes[i]),
+                "low": float(lows[i]) if i < len(lows) else float(closes[i]),
+                "close": float(closes[i]),
+                "volume": int(vol) if vol is not None else None,
+            })
+        return candles
 
     async def health_check(self) -> bool:
         try:
