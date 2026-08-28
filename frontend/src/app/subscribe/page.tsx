@@ -98,7 +98,10 @@ export default function SubscribePage() {
           </div>
         ))}
       </section>
-      <p className="mt-8 text-xs text-slate-500">Cards, net banking, and wallets other than UPI are not accepted.</p>
+      <p className="mt-8 text-xs text-slate-500">
+        Cards, net banking, and wallets other than UPI are not accepted.
+        After subscribe, enable <strong className="text-slate-400">auto-renew</strong> in Settings — we email a UPI link before expiry.
+      </p>
     </main>
   );
 }
