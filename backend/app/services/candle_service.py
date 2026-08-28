@@ -84,10 +84,10 @@ class CandleService:
                 "security_id": symbol,
             }
 
-        use_mock = settings.app_env != "production" or settings.debug
+        use_mock = (settings.app_env != "production" or settings.debug) and not adapter
         candles: list[dict] = []
 
-        if adapter and not use_mock:
+        if adapter:
             try:
                 candles = await adapter.get_historical_candles(
                     security_id=inst["security_id"],
@@ -98,7 +98,7 @@ class CandleService:
             except Exception:
                 candles = []
 
-        if not candles:
+        if not candles and use_mock:
             candles = _generate_mock_candles(inst["symbol"], interval, count)
             source = "mock_dev"
         else:

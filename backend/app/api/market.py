@@ -1,12 +1,14 @@
 import json
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.brokers.factory import get_broker_adapter
 from app.core.deps import get_current_user
-from app.core.security import decode_token
-from app.database import get_db
+from app.core.security import decrypt_data, decode_token
+from app.database import AsyncSessionLocal, get_db
 from app.models import User
 from app.services.candle_service import candle_service
 from app.services.instrument_service import instrument_service
@@ -15,6 +17,19 @@ from app.services.market_ws_manager import subscribe_ws, unsubscribe_all, unsubs
 from app.services.portfolio_service import portfolio_service
 
 router = APIRouter(prefix="/market", tags=["Market"])
+
+
+async def _dhan_credentials(db: AsyncSession, user: User) -> dict | None:
+    conn = await portfolio_service._active_connection(db, user, "dhan")
+    if not conn:
+        return None
+    try:
+        creds = json.loads(decrypt_data(conn.encrypted_credentials))
+        if conn.client_id:
+            creds.setdefault("client_id", conn.client_id)
+        return creds
+    except Exception:
+        return None
 
 
 @router.get("/indices")
@@ -64,19 +79,42 @@ async def market_quote(
     ltp = None
     change = 0.0
     change_pct = 0.0
+    source = "cache"
+
+    from app.services.market_quote_cache import get_by_symbol
+
+    cached = get_by_symbol(inst["symbol"])
+    if cached and cached.get("ltp"):
+        ltp = float(cached["ltp"])
+        change = float(cached.get("change", 0))
+        change_pct = float(cached.get("change_pct", 0))
+        source = cached.get("source", "dhan_live")
+
     conn = await portfolio_service._active_connection(db, current_user, "dhan")
-    if conn:
+    if conn and ltp is None:
         try:
             adapter = get_broker_adapter(conn)
-            quote = await adapter.get_market_quote([inst["security_id"]])
-            # Dhan LTP response shape varies
-            ltp = float(quote.get("data", {}).get("NSE_EQ", {}).get(inst["security_id"], 0) or 0)
+            data = await adapter.get_market_quote_for_instrument(
+                inst["security_id"],
+                inst.get("exchange", exchange),
+                inst.get("segment", "EQUITY"),
+            )
+            if data:
+                ltp = float(data.get("last_price", 0) or 0)
+                ohlc = data.get("ohlc") or {}
+                prev = float(ohlc.get("close", 0) or 0)
+                if prev and ltp:
+                    change = round(ltp - prev, 2)
+                    change_pct = round((change / prev) * 100, 2)
+                source = "dhan"
         except Exception:
-            ltp = None
+            pass
 
     if ltp is None:
         from app.services.candle_service import BASE_PRICES
+
         ltp = BASE_PRICES.get(inst["symbol"], 1000.0)
+        source = "fallback"
 
     return {
         "symbol": inst["symbol"],
@@ -86,6 +124,7 @@ async def market_quote(
         "change": change,
         "change_pct": change_pct,
         "security_id": inst["security_id"],
+        "source": source,
     }
 
 
@@ -100,7 +139,23 @@ async def market_websocket(ws: WebSocket):
         await ws.close(code=4401)
         return
 
+    user_id = str(payload.get("sub", ""))
+    if not user_id:
+        await ws.close(code=4401)
+        return
+
     await ws.accept()
+    dhan_creds: dict | None = None
+    async with AsyncSessionLocal() as db:
+        try:
+            uid = uuid.UUID(user_id)
+            result = await db.execute(select(User).where(User.id == uid))
+            user = result.scalar_one_or_none()
+            if user:
+                dhan_creds = await _dhan_credentials(db, user)
+        except Exception:
+            dhan_creds = None
+
     try:
         while True:
             raw = await ws.receive_text()
@@ -109,13 +164,12 @@ async def market_websocket(ws: WebSocket):
             symbol = data.get("symbol", "").upper()
             exchange = data.get("exchange", "NSE").upper()
             if action == "subscribe" and symbol:
-                await subscribe_ws(ws, symbol, exchange)
-                await ws.send_text(json.dumps({"type": "subscribed", "symbol": symbol, "exchange": exchange}))
+                await subscribe_ws(ws, user_id, symbol, exchange, dhan_creds)
             elif action == "unsubscribe" and symbol:
-                await unsubscribe_ws(ws, symbol, exchange)
+                await unsubscribe_ws(ws, user_id, symbol, exchange)
                 await ws.send_text(json.dumps({"type": "unsubscribed", "symbol": symbol}))
     except WebSocketDisconnect:
-        await unsubscribe_all(ws)
+        await unsubscribe_all(ws, user_id)
     except Exception:
-        await unsubscribe_all(ws)
+        await unsubscribe_all(ws, user_id)
         await ws.close()

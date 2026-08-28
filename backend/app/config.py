@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     smtp_ssl: bool = False
 
     dhan_api_base_url: str = "https://api.dhan.co/v2"
+    dhan_feed_ws_url: str = "wss://api-feed.dhan.co"
     dhan_static_ip: str = ""
 
     groww_api_base_url: str = "https://api.groww.in"

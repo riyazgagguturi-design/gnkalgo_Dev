@@ -5,6 +5,7 @@ from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from app.config import settings
+from app.services.market_quote_cache import get_by_symbol
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -51,14 +52,23 @@ def market_session() -> dict:
 
 
 def get_indices() -> dict:
-    use_mock = settings.app_env != "production" or settings.debug
+    use_mock_drift = settings.app_env != "production" or settings.debug
     items = []
-    for name, key, ltp, chg, chg_pct in _INDEX_BASE:
-        if use_mock:
-            drift = random.uniform(-0.15, 0.15)
-            ltp = round(ltp * (1 + drift / 100), 2)
-            chg = round(chg + drift, 2)
-            chg_pct = round(chg_pct + drift / 10, 2)
+    live_count = 0
+    for name, key, base_ltp, base_chg, base_chg_pct in _INDEX_BASE:
+        cached = get_by_symbol(key)
+        if cached and cached.get("ltp"):
+            ltp = float(cached["ltp"])
+            chg = float(cached.get("change", 0))
+            chg_pct = float(cached.get("change_pct", 0))
+            live_count += 1
+        else:
+            ltp, chg, chg_pct = base_ltp, base_chg, base_chg_pct
+            if use_mock_drift:
+                drift = random.uniform(-0.15, 0.15)
+                ltp = round(ltp * (1 + drift / 100), 2)
+                chg = round(chg + drift, 2)
+                chg_pct = round(chg_pct + drift / 10, 2)
         items.append(
             {
                 "name": name,
@@ -68,9 +78,17 @@ def get_indices() -> dict:
                 "change_pct": chg_pct,
             }
         )
+
+    if live_count > 0:
+        source = "dhan_live"
+    elif use_mock_drift:
+        source = "mock_dev"
+    else:
+        source = "static"
+
     return {
         "indices": items,
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "source": "mock_dev" if use_mock else "static",
-        "disclaimer": "Not investment advice. Index values are illustrative until live feed is connected.",
+        "source": source,
+        "disclaimer": "Not investment advice.",
     }

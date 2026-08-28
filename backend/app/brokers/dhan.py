@@ -14,11 +14,24 @@ class DhanAdapter(BrokerAdapter):
         self.base_url = settings.dhan_api_base_url
 
     def _headers(self) -> dict[str, str]:
-        return {
+        headers = {
             "access-token": self.access_token,
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        if self.client_id:
+            headers["client-id"] = self.client_id
+        return headers
+
+    async def get_market_ltp(self, segment_map: dict[str, list[str]]) -> dict:
+        """segment_map e.g. {\"NSE_EQ\": [\"2885\"], \"IDX_I\": [\"13\"]}"""
+        return await self._request("POST", "/marketfeed/ltp", json=segment_map)
+
+    async def get_market_ohlc(self, segment_map: dict[str, list[str]]) -> dict:
+        return await self._request("POST", "/marketfeed/ohlc", json=segment_map)
+
+    async def get_market_quote(self, symbols: list[str], exchange_segment: str = "NSE_EQ") -> dict:
+        return await self.get_market_ltp({exchange_segment: symbols})
 
     async def _request(self, method: str, path: str, **kwargs) -> dict:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -82,8 +95,24 @@ class DhanAdapter(BrokerAdapter):
         await self._request("DELETE", f"/orders/{order_id}")
         return OrderResponse(order_id=order_id, status="CANCELLED")
 
-    async def get_market_quote(self, symbols: list[str]) -> dict:
-        return await self._request("POST", "/marketfeed/ltp", json={"NSE_EQ": symbols})
+    async def get_market_quote_for_instrument(
+        self,
+        security_id: str,
+        exchange: str,
+        segment: str,
+    ) -> dict | None:
+        from app.services.instrument_segments import dhan_exchange_segment
+
+        seg = dhan_exchange_segment(exchange, segment)
+        try:
+            ohlc = await self.get_market_ohlc({seg: [str(security_id)]})
+            data = ohlc.get("data", {}).get(seg, {}).get(str(security_id))
+            if data:
+                return data
+            ltp = await self.get_market_ltp({seg: [str(security_id)]})
+            return ltp.get("data", {}).get(seg, {}).get(str(security_id))
+        except Exception:
+            return None
 
     async def get_historical_candles(
         self,
