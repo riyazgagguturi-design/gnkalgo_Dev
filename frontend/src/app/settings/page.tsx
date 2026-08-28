@@ -1,6 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/AppShell";
+import { SettingsNav } from "@/components/settings/SettingsNav";
 import { api } from "@/lib/api";
 import { FormEvent, useEffect, useState } from "react";
 
@@ -94,7 +95,8 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <h1 className="text-3xl font-semibold">Settings</h1>
+      <h1 className="text-lg font-semibold text-[var(--text-primary)]">Settings</h1>
+      <SettingsNav />
       <p className="mt-2 text-slate-400">{me?.email} · verified: {String(me?.is_verified)} · MFA: {String(me?.mfa_enabled)}</p>
       {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
       {message && <p className="mt-3 text-sm text-[#2ee6a6] break-all">{message}</p>}

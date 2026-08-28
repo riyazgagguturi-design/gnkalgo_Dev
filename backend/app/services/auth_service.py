@@ -143,6 +143,7 @@ class AuthService:
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
             expires_at=expires,
+            last_active_at=datetime.now(timezone.utc),
         )
         db.add(session)
         await log_audit(db, "user.login_success", user.id, request)
@@ -180,6 +181,7 @@ class AuthService:
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
             expires_at=expires,
+            last_active_at=datetime.now(timezone.utc),
         )
         db.add(new_session)
         await log_audit(db, "user.token_refreshed", uuid.UUID(user_id), request)

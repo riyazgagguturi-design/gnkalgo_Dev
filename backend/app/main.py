@@ -12,6 +12,8 @@ from sqlalchemy import text
 
 from app.api.market import router as market_router
 from app.api.portfolio import router as portfolio_router
+from app.api.profile import router as profile_router
+from app.api.news import router as news_router
 from app.api.admin import router as admin_router
 from app.api.auth import brokers_router, router as auth_router
 from app.api.billing import router as billing_router
@@ -92,6 +94,31 @@ def _add_subscription_columns(sync_conn):
     )
 
 
+def _add_profile_columns(sync_conn):
+    dialect = sync_conn.dialect.name
+    user_cols = {
+        "display_name": "VARCHAR(100)",
+        "gender": "VARCHAR(20)",
+        "date_of_birth": "DATE",
+        "profile_photo_url": "VARCHAR(512)",
+        "theme_preference": "VARCHAR(32) DEFAULT 'background-1'",
+    }
+    if dialect == "sqlite":
+        cols = {row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(users)")}
+        for name, coltype in user_cols.items():
+            if name not in cols:
+                sync_conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN {name} {coltype}")
+        sess_cols = {row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(user_sessions)")}
+        if "last_active_at" not in sess_cols:
+            sync_conn.exec_driver_sql("ALTER TABLE user_sessions ADD COLUMN last_active_at DATETIME")
+        return
+    for name, coltype in user_cols.items():
+        sync_conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {coltype}")
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ"
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.services.billing_scheduler import start_billing_scheduler
@@ -102,6 +129,7 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(_add_user_columns)
         await conn.run_sync(_add_strategy_columns)
         await conn.run_sync(_add_subscription_columns)
+        await conn.run_sync(_add_profile_columns)
     scheduler_task = start_strategy_scheduler()
     billing_task = start_billing_scheduler()
     yield
@@ -152,6 +180,8 @@ for prefix in (API_PREFIX, "/v1"):
     app.include_router(admin_router, prefix=prefix)
     app.include_router(market_router, prefix=prefix)
     app.include_router(portfolio_router, prefix=prefix)
+    app.include_router(profile_router, prefix=prefix)
+    app.include_router(news_router, prefix=prefix)
 
 
 @app.get("/api/v1")

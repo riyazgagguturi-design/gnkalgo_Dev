@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,15 +22,27 @@ export const metadata: Metadata = {
   },
 };
 
+const themeInitScript = `
+(function() {
+  try {
+    var t = localStorage.getItem('gnk_theme') || 'background-1';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="background-1" suppressHydrationWarning>
+      <head>
+        <script>{themeInitScript}</script>
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}>
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

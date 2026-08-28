@@ -15,7 +15,8 @@ const NAV = [
   { href: "/signals", label: "AI Signals", icon: "✦" },
   { href: "/alerts", label: "Alerts", icon: "!" },
   { href: "/broker", label: "Broker", icon: "⇌" },
-  { href: "/settings", label: "Profile", icon: "○" },
+  { href: "/profile", label: "Profile", icon: "○" },
+  { href: "/settings", label: "Settings", icon: "⚙" },
   { href: "/subscribe", label: "Subscribe", icon: "★" },
 ];
 

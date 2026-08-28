@@ -16,6 +16,7 @@ import { fmtINR } from "@/lib/format";
 import { normalizeHolding } from "@/lib/holdings";
 import { localToUnified, type LocalOrder } from "@/lib/orders";
 import { normalizePosition } from "@/lib/portfolio";
+import { fetchProfile } from "@/services/profileService";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -48,16 +49,19 @@ export default function DashboardPage() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [error, setError] = useState("");
 
+  const [displayName, setDisplayName] = useState("");
+
   const load = useCallback(async () => {
     setError("");
     try {
-      const [dash, fundsRes, posRes, holdRes, ordRes, sigRes] = await Promise.all([
+      const [dash, fundsRes, posRes, holdRes, ordRes, sigRes, profile] = await Promise.all([
         api<Summary>("/api/v1/dashboard/summary", {}, true),
         api<{ data: Record<string, unknown> | null }>("/api/v1/portfolio/funds?broker=dhan", {}, true),
         api<{ items: Record<string, unknown>[] }>("/api/v1/portfolio/positions?broker=dhan", {}, true),
         api<{ items: Record<string, unknown>[] }>("/api/v1/portfolio/holdings?broker=dhan", {}, true),
         api<LocalOrder[]>("/api/v1/orders/", {}, true),
         api<Signal[]>("/api/v1/signals/", {}, true),
+        fetchProfile().catch(() => null),
       ]);
       setSummary(dash);
       setFunds(fundsRes.data);
@@ -65,6 +69,7 @@ export default function DashboardPage() {
       setHoldings(holdRes.items || []);
       setOrders(ordRes.slice(0, 5));
       setSignals(sigRes.slice(0, 5));
+      if (profile?.display_name) setDisplayName(profile.display_name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     }
@@ -94,7 +99,7 @@ export default function DashboardPage() {
     <AppShell>
       <PageHeader
         title="Dashboard"
-        subtitle={`Welcome ${summary?.user ?? ""} · GnKAlgo terminal`}
+        subtitle={`Welcome ${displayName || summary?.user || ""} · GnKAlgo terminal`}
         action={
           <button type="button" onClick={load} className="rounded border border-[var(--line)] px-2.5 py-1 text-[11px]">
             Refresh

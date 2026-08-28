@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -20,6 +21,8 @@ from app.schemas.auth import (
     UserResponse,
     VerifyEmailRequest,
 )
+from app.schemas.profile import LogoutOthersRequest, SessionResponse
+from app.services.session_service import session_service
 from app.services.auth_service import auth_service, broker_service
 from app.services.email_service import email_service
 
@@ -141,6 +144,39 @@ async def reset_password(
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/sessions", response_model=list[SessionResponse])
+async def list_sessions(
+    refresh_token: str | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    sessions = await session_service.list_sessions(db, current_user, refresh_token)
+    return sessions
+
+
+@router.delete("/sessions/{session_id}", response_model=MessageResponse)
+async def revoke_session(
+    session_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        await session_service.revoke_session(db, current_user, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return MessageResponse(message="Device logged out")
+
+
+@router.post("/sessions/logout-others", response_model=MessageResponse)
+async def logout_other_sessions(
+    data: LogoutOthersRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    count = await session_service.logout_others(db, current_user, data.refresh_token)
+    return MessageResponse(message=f"Logged out {count} other device(s).")
 
 
 @router.post("/logout", response_model=MessageResponse)

@@ -24,7 +24,7 @@ export function getAccessToken() {
   return localStorage.getItem(ACCESS_KEY);
 }
 
-function getRefreshToken() {
+export function getRefreshToken() {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(REFRESH_KEY);
 }
