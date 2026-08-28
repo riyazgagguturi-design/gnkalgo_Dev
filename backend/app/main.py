@@ -114,6 +114,27 @@ for prefix in (API_PREFIX, "/v1"):
     app.include_router(admin_router, prefix=prefix)
 
 
+@app.get("/api/v1")
+@app.get("/api/v1/")
+@app.get("/v1")
+@app.get("/v1/")
+async def api_root():
+    return {
+        "service": "gnkalgo-backend",
+        "version": "0.1.0",
+        "site": settings.frontend_url,
+        "endpoints": {
+            "health": "/health",
+            "docs": "/docs",
+            "redoc": "/redoc",
+            "auth": "/api/v1/auth",
+            "billing": "/api/v1/billing",
+            "admin": "/api/v1/admin",
+        },
+        "note": "Use /api/v1/<module>/... for REST calls. Admin requires is_admin user.",
+    }
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "gnkalgo-backend", "version": "0.1.0"}

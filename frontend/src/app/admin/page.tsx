@@ -42,9 +42,19 @@ export default function AdminPage() {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [meEmail, setMeEmail] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   async function load() {
+    setError("");
     try {
+      const me = await api<{ email: string; is_admin?: boolean }>("/api/v1/auth/me", {}, true);
+      setMeEmail(me.email);
+      setIsAdmin(Boolean(me.is_admin));
+      if (!me.is_admin) {
+        setError("Admin only — your account is not an admin yet.");
+        return;
+      }
       const [s, u, p] = await Promise.all([
         api<Stats>("/api/v1/admin/stats", {}, true),
         api<UserRow[]>("/api/v1/admin/users", {}, true),
@@ -77,7 +87,32 @@ export default function AdminPage() {
     <AppShell>
       <h1 className="text-3xl font-semibold">Admin</h1>
       <p className="mt-1 text-slate-400">Registered users, logins, and UPI payments</p>
-      {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
+      {meEmail && (
+        <p className="mt-2 text-sm text-slate-500">
+          Logged in as <span className="text-slate-300">{meEmail}</span>
+          {isAdmin ? " · admin" : " · not admin"}
+        </p>
+      )}
+      {error && (
+        <div className="mt-4 rounded-2xl border border-[#ff6b6b]/40 bg-[#1a0d0d]/50 p-5 text-sm">
+          <p className="text-[#ff6b6b] font-medium">{error}</p>
+          {!isAdmin && (
+            <div className="mt-3 text-slate-300 space-y-2">
+              <p className="font-medium text-slate-200">How to get admin access (on Oracle server):</p>
+              <ol className="list-decimal pl-5 space-y-1">
+                <li>Edit <code className="text-xs bg-[#071018] px-1">/opt/gnkalgo/.env</code></li>
+                <li>Set <code className="text-xs bg-[#071018] px-1">ADMIN_EMAILS={meEmail || "your-email@gnkalgo.com"}</code></li>
+                <li>Restart backend: <code className="text-xs bg-[#071018] px-1">docker compose -f docker-compose.prod.yml up -d --force-recreate backend</code></li>
+                <li>Sign out and <strong>login again</strong> with that email</li>
+                <li>Reopen <a href="/admin" className="text-[#2ee6a6]">/admin</a></li>
+              </ol>
+              <p className="text-xs text-slate-500 mt-2">
+                Or in Postgres: <code>UPDATE users SET is_admin = true WHERE email = &apos;{meEmail}&apos;;</code>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {note && <p className="mt-3 text-[#2ee6a6]">{note}</p>}
 
       {stats && (

@@ -64,8 +64,15 @@ async def checkout(
         "amount_inr": payment.amount_inr,
         "days": payment.days,
         "plan_code": payment.plan_code,
+        "plan_label": billing_service.get_plan(payment.plan_code)["label"],
         "intents": intents,
-        "instructions": "Pay with any UPI app (PhonePe, GPay, Paytm). Then enter the UTR / UPI Ref No.",
+        "support_email": settings.support_email,
+        "admin_url": f"{settings.frontend_url.rstrip('/')}/admin",
+        "instructions": (
+            "1. Pay exact amount via PhonePe, GPay, or Paytm. "
+            "2. Copy UTR / UPI Ref No. from the app. "
+            "3. Submit below. Access starts after admin confirms at /admin."
+        ),
     }
 
 
