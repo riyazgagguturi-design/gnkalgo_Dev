@@ -24,11 +24,19 @@ type Summary = {
 export default function DashboardPage() {
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState("");
+  const [renewal, setRenewal] = useState<{ pay_url: string; amount_inr: number; plan_label: string } | null>(null);
 
   useEffect(() => {
     api<Summary>("/api/v1/dashboard/summary", {}, true)
       .then(setData)
       .catch((err) => setError(err.message));
+    api<{ pending_renewal: { pay_url: string; amount_inr: number; plan_label: string } | null }>(
+      "/api/v1/billing/me",
+      {},
+      true,
+    )
+      .then((b) => setRenewal(b.pending_renewal))
+      .catch(() => setRenewal(null));
   }, []);
 
   const steps = data?.next_steps || [];
@@ -39,6 +47,14 @@ export default function DashboardPage() {
       <h1 className="text-3xl font-semibold">Dashboard</h1>
       <p className="mt-1 text-slate-400">Welcome {data?.user || ""}</p>
       {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
+      {renewal && (
+        <div className="mt-4 rounded-xl border border-[#2ee6a6]/40 bg-[#0d1b24] p-4 text-sm">
+          <p className="font-medium text-[#2ee6a6]">Auto-renew: pay ₹{renewal.amount_inr} ({renewal.plan_label})</p>
+          <a href={renewal.pay_url} className="mt-2 inline-block text-[#3aa0ff]">
+            Open UPI payment page →
+          </a>
+        </div>
+      )}
       <p className="mt-3 text-sm text-slate-400">
         {data?.subscription?.active
           ? `Plan ${data.subscription.plan_code} until ${data.subscription.expires_at}`

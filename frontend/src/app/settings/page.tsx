@@ -6,9 +6,24 @@ import { FormEvent, useEffect, useState } from "react";
 
 type Me = { email: string; full_name?: string | null; mfa_enabled: boolean; is_verified: boolean };
 type Broker = { id: string; broker: string; health_status: string; is_active: boolean };
+type BillingMe = {
+  active: boolean;
+  subscription: {
+    plan_code: string;
+    expires_at: string;
+    active: boolean;
+    auto_renew_enabled: boolean;
+    auto_renew_plan_code: string | null;
+  } | null;
+  pending_renewal: { pay_url: string; amount_inr: number; plan_label: string } | null;
+};
+type Plan = { code: string; label: string };
 
 export default function SettingsPage() {
   const [me, setMe] = useState<Me | null>(null);
+  const [billing, setBilling] = useState<BillingMe | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [renewPlan, setRenewPlan] = useState("5DAYS");
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [broker, setBroker] = useState("dhan");
   const [accessToken, setAccessToken] = useState("");
@@ -22,6 +37,15 @@ export default function SettingsPage() {
   async function load() {
     setMe(await api<Me>("/api/v1/auth/me", {}, true));
     setBrokers(await api<Broker[]>("/api/v1/brokers/connections", {}, true));
+    const bill = await api<BillingMe>("/api/v1/billing/me", {}, true);
+    setBilling(bill);
+    const planRes = await api<{ plans: Plan[] }>("/api/v1/billing/plans");
+    setPlans(planRes.plans);
+    if (bill.subscription?.auto_renew_plan_code) {
+      setRenewPlan(bill.subscription.auto_renew_plan_code);
+    } else if (bill.subscription?.plan_code) {
+      setRenewPlan(bill.subscription.plan_code);
+    }
   }
 
   useEffect(() => {
@@ -54,6 +78,20 @@ export default function SettingsPage() {
     await load();
   }
 
+  async function toggleAutoRenew(enabled: boolean) {
+    setError("");
+    try {
+      const res = await api<{ message: string }>("/api/v1/billing/auto-renew", {
+        method: "PUT",
+        body: JSON.stringify({ enabled, plan_code: enabled ? renewPlan : null }),
+      }, true);
+      setMessage(res.message);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update auto-renew");
+    }
+  }
+
   return (
     <AppShell>
       <h1 className="text-3xl font-semibold">Settings</h1>
@@ -61,7 +99,65 @@ export default function SettingsPage() {
       {error && <p className="mt-3 text-[#ff6b6b]">{error}</p>}
       {message && <p className="mt-3 text-sm text-[#2ee6a6] break-all">{message}</p>}
 
-      <section id="mfa" className="mt-8 scroll-mt-8 rounded-2xl border border-[#1d3542] p-5">
+      <section id="subscription" className="mt-8 scroll-mt-8 rounded-2xl border border-[#1d3542] p-5">
+        <h2 className="font-medium">Auto-renew (UPI)</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          Before your plan expires, we email a UPI pay link. Pay and submit UTR — your plan extends from the current expiry date.
+          (UPI Autopay mandate via Razorpay/PhonePe Business can be added later.)
+        </p>
+        {billing?.subscription ? (
+          <div className="mt-4 text-sm text-slate-300">
+            <p>Plan: {billing.subscription.plan_code} · expires {billing.subscription.expires_at}</p>
+            <p className="mt-1">
+              Auto-renew:{" "}
+              <span className={billing.subscription.auto_renew_enabled ? "text-[#2ee6a6]" : "text-slate-500"}>
+                {billing.subscription.auto_renew_enabled ? "ON" : "OFF"}
+              </span>
+            </p>
+            {billing.pending_renewal && (
+              <p className="mt-2 text-[#2ee6a6]">
+                Renewal due: ₹{billing.pending_renewal.amount_inr} —{" "}
+                <a href={billing.pending_renewal.pay_url}>Pay now</a>
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <select
+                className="rounded-lg border border-[#1d3542] bg-[#071018] px-3 py-2 text-sm"
+                value={renewPlan}
+                onChange={(e) => setRenewPlan(e.target.value)}
+                disabled={billing.subscription.auto_renew_enabled}
+              >
+                {plans.map((p) => (
+                  <option key={p.code} value={p.code}>{p.label}</option>
+                ))}
+              </select>
+              {billing.subscription.auto_renew_enabled ? (
+                <button
+                  type="button"
+                  onClick={() => toggleAutoRenew(false)}
+                  className="rounded-xl border border-[#1d3542] px-4 py-2 text-sm"
+                >
+                  Turn off auto-renew
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggleAutoRenew(true)}
+                  className="rounded-xl bg-[#2ee6a6] px-4 py-2 text-sm font-semibold text-[#071018]"
+                >
+                  Enable auto-renew
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-500">
+            <a href="/subscribe" className="text-[#2ee6a6]">Subscribe</a> first to enable auto-renew.
+          </p>
+        )}
+      </section>
+
+      <section id="mfa" className="mt-6 scroll-mt-8 rounded-2xl border border-[#1d3542] p-5">
         <h2 className="font-medium">1. Multi-factor authentication</h2>
         <p className="mt-2 text-sm text-slate-400">Required before live (real-money) orders. Paper orders work without MFA.</p>
         {me?.mfa_enabled ? (

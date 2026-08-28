@@ -69,5 +69,27 @@ class EmailService:
         """
         await self.send(to_email, f"Reset your {settings.app_name} password", text, html)
 
+    async def send_renewal_reminder(
+        self,
+        to_email: str,
+        pay_url: str,
+        plan_label: str,
+        amount_inr: int,
+        expires_at,
+    ) -> None:
+        expires_str = expires_at.strftime("%Y-%m-%d %H:%M UTC") if expires_at else "soon"
+        text = (
+            f"Your {settings.app_name} plan ({plan_label}) expires on {expires_str}.\n\n"
+            f"Auto-renew is on. Pay ₹{amount_inr} via UPI to extend without losing access:\n{pay_url}\n\n"
+            "After paying, open the link and submit your UTR. We confirm within a few hours."
+        )
+        html = f"""
+        <p>Your <strong>{settings.app_name}</strong> plan <strong>{plan_label}</strong> expires on {expires_str}.</p>
+        <p>Auto-renew is enabled. Pay <strong>₹{amount_inr}</strong> via UPI:</p>
+        <p><a href="{pay_url}">{pay_url}</a></p>
+        <p>Submit your UTR on that page after payment.</p>
+        """
+        await self.send(to_email, f"{settings.app_name} subscription renewal", text, html)
+
 
 email_service = EmailService()

@@ -13,6 +13,8 @@ type Checkout = {
   days: number;
   plan_code: string;
   plan_label?: string;
+  is_renewal?: boolean;
+  pay_url?: string;
   intents: { upi: string; gpay: string; phonepe: string; paytm: string; vpa: string; payee: string };
   instructions?: string;
   support_email?: string;
@@ -42,13 +44,30 @@ function PayInner() {
   const [utr, setUtr] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const paymentId = params.get("id");
     const raw = sessionStorage.getItem("gnk_checkout");
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as Checkout;
-    if (params.get("id") && parsed.payment_id !== params.get("id")) return;
-    setCheckout(parsed);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Checkout;
+      if (!paymentId || parsed.payment_id === paymentId) {
+        setCheckout(parsed);
+        setLoading(false);
+        return;
+      }
+    }
+    if (!paymentId) {
+      setLoading(false);
+      return;
+    }
+    api<Checkout>(`/api/v1/billing/payments/${paymentId}`, {}, true)
+      .then((data) => {
+        setCheckout(data);
+        sessionStorage.setItem("gnk_checkout", JSON.stringify(data));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load payment"))
+      .finally(() => setLoading(false));
   }, [params]);
 
   async function onSubmit(e: FormEvent) {
@@ -65,6 +84,10 @@ function PayInner() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not submit UTR");
     }
+  }
+
+  if (loading) {
+    return <main className="mx-auto max-w-lg px-6 py-12 text-slate-400">Loading payment…</main>;
   }
 
   if (!checkout) {
@@ -89,7 +112,9 @@ function PayInner() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <Logo href="/subscribe" size={44} />
-      <h1 className="mt-6 text-2xl font-semibold">Complete UPI payment</h1>
+      <h1 className="mt-6 text-2xl font-semibold">
+        {checkout.is_renewal ? "Renew subscription" : "Complete UPI payment"}
+      </h1>
       <p className="mt-2 text-slate-400">UPI only · PhonePe · Google Pay · Paytm</p>
 
       <section className="mt-6 rounded-2xl border border-[#1d3542] bg-[#0d1b24]/70 p-5">

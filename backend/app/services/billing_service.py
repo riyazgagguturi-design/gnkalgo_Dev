@@ -22,6 +22,14 @@ def get_plan(code: str) -> dict:
     raise ValueError("Unknown plan")
 
 
+def _aware(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def upi_payload(amount: int, reference: str, note: str) -> str:
     params = {
         "pa": settings.upi_vpa,
@@ -48,17 +56,67 @@ def upi_intents(amount: int, reference: str) -> dict:
     }
 
 
-async def active_subscription(db: AsyncSession, user: User) -> Subscription | None:
+def checkout_payload(payment: Payment, intents: dict) -> dict:
+    plan = get_plan(payment.plan_code)
+    pay_url = f"{settings.frontend_url.rstrip('/')}/subscribe/pay?id={payment.id}"
+    return {
+        "payment_id": str(payment.id),
+        "reference": payment.reference,
+        "amount_inr": payment.amount_inr,
+        "days": payment.days,
+        "plan_code": payment.plan_code,
+        "plan_label": plan["label"],
+        "is_renewal": payment.is_renewal,
+        "intents": intents,
+        "pay_url": pay_url,
+        "support_email": settings.support_email,
+        "instructions": (
+            "Auto-renewal: pay exact amount via UPI, then submit UTR. "
+            "Your plan extends from the current expiry date."
+        ),
+    }
+
+
+async def get_subscription_row(db: AsyncSession, user: User) -> Subscription | None:
     result = await db.execute(select(Subscription).where(Subscription.user_id == user.id))
-    sub = result.scalar_one_or_none()
+    return result.scalar_one_or_none()
+
+
+async def active_subscription(db: AsyncSession, user: User) -> Subscription | None:
+    sub = await get_subscription_row(db, user)
     if not sub:
         return None
-    if sub.expires_at.replace(tzinfo=sub.expires_at.tzinfo or timezone.utc) < datetime.now(timezone.utc):
+    expires = _aware(sub.expires_at)
+    if expires and expires < datetime.now(timezone.utc):
         return None
     return sub
 
 
-async def create_payment(db: AsyncSession, user: User, plan_code: str) -> tuple[Payment, dict]:
+async def pending_renewal_payment(db: AsyncSession, user: User) -> Payment | None:
+    return await _pending_renewal_for_user(db, user.id)
+
+
+async def _pending_renewal_for_user(db: AsyncSession, user_id) -> Payment | None:
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Payment)
+        .where(
+            Payment.user_id == user_id,
+            Payment.is_renewal.is_(True),
+            Payment.status.in_(["pending", "submitted"]),
+            Payment.created_at >= now - timedelta(days=14),
+        )
+        .order_by(Payment.created_at.desc())
+    )
+    return result.scalars().first()
+
+
+async def create_payment(
+    db: AsyncSession,
+    user: User,
+    plan_code: str,
+    is_renewal: bool = False,
+) -> tuple[Payment, dict]:
     plan = get_plan(plan_code)
     reference = f"GNK{generate_secure_token()[:10].upper()}"
     payment = Payment(
@@ -69,10 +127,31 @@ async def create_payment(db: AsyncSession, user: User, plan_code: str) -> tuple[
         reference=reference,
         status="pending",
         upi_vpa=settings.upi_vpa,
+        is_renewal=is_renewal,
+        note="auto_renewal" if is_renewal else None,
     )
     db.add(payment)
     await db.flush()
     return payment, upi_intents(plan["amount_inr"], reference)
+
+
+async def set_auto_renew(
+    db: AsyncSession,
+    user: User,
+    enabled: bool,
+    plan_code: str | None = None,
+) -> Subscription:
+    sub = await get_subscription_row(db, user)
+    if not sub:
+        raise ValueError("Subscribe first before enabling auto-renew")
+    if enabled:
+        code = (plan_code or sub.auto_renew_plan_code or sub.plan_code).upper()
+        get_plan(code)
+        sub.auto_renew_enabled = True
+        sub.auto_renew_plan_code = code
+    else:
+        sub.auto_renew_enabled = False
+    return sub
 
 
 async def submit_utr(db: AsyncSession, user: User, payment_id, utr: str) -> Payment:
@@ -99,13 +178,16 @@ async def confirm_payment(db: AsyncSession, payment_id) -> Payment:
     existing = await db.execute(select(Subscription).where(Subscription.user_id == payment.user_id))
     sub = existing.scalar_one_or_none()
     start = now
-    if sub and sub.expires_at.replace(tzinfo=sub.expires_at.tzinfo or timezone.utc) > now:
-        start = sub.expires_at.replace(tzinfo=sub.expires_at.tzinfo or timezone.utc)
+    if sub and _aware(sub.expires_at) and _aware(sub.expires_at) > now:
+        start = _aware(sub.expires_at)
     expires = start + timedelta(days=payment.days)
     if sub:
         sub.plan_code = payment.plan_code
         sub.starts_at = start
         sub.expires_at = expires
+        sub.renewal_reminder_sent_at = None
+        if payment.is_renewal and sub.auto_renew_plan_code is None:
+            sub.auto_renew_plan_code = payment.plan_code
     else:
         db.add(
             Subscription(
@@ -116,3 +198,60 @@ async def confirm_payment(db: AsyncSession, payment_id) -> Payment:
             )
         )
     return payment
+
+
+async def process_auto_renewals(db: AsyncSession) -> int:
+    """Create renewal UPI payments and email users before subscription expires."""
+    from app.models import User as UserModel
+    from app.services.email_service import email_service
+
+    now = datetime.now(timezone.utc)
+    lead = timedelta(hours=settings.auto_renew_lead_hours)
+    remind_cooldown = timedelta(hours=12)
+    created = 0
+
+    result = await db.execute(select(Subscription).where(Subscription.auto_renew_enabled.is_(True)))
+    for sub in result.scalars().all():
+        expires = _aware(sub.expires_at)
+        if not expires:
+            continue
+        if expires - now > lead:
+            continue
+
+        last_reminder = _aware(sub.renewal_reminder_sent_at)
+        if last_reminder and now - last_reminder < remind_cooldown:
+            continue
+
+        if await _pending_renewal_for_user(db, sub.user_id):
+            continue
+
+        user_result = await db.execute(select(UserModel).where(UserModel.id == sub.user_id))
+        user = user_result.scalar_one_or_none()
+        if not user or not user.is_active:
+            continue
+
+        plan_code = sub.auto_renew_plan_code or sub.plan_code
+        try:
+            payment, _ = await create_payment(db, user, plan_code, is_renewal=True)
+        except ValueError:
+            continue
+
+        sub.renewal_reminder_sent_at = now
+        payload = checkout_payload(payment, upi_intents(payment.amount_inr, payment.reference))
+        pay_url = payload["pay_url"]
+
+        if email_service.enabled():
+            try:
+                await email_service.send_renewal_reminder(
+                    user.email,
+                    pay_url,
+                    payload["plan_label"],
+                    payload["amount_inr"],
+                    expires,
+                )
+            except Exception:
+                pass
+
+        created += 1
+
+    return created

@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     upi_payee_name: str = "GNK ALGO"
     strategy_scheduler_tick_seconds: int = 60
     support_email: str = "support@gnkalgo.com"
+    auto_renew_lead_hours: int = 24
+    billing_scheduler_tick_seconds: int = 3600
 
     @property
     def admin_email_list(self) -> list[str]:

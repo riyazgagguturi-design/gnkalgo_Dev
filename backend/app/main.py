@@ -62,19 +62,55 @@ def _add_strategy_columns(sync_conn):
     )
 
 
+def _add_subscription_columns(sync_conn):
+    dialect = sync_conn.dialect.name
+    if dialect == "sqlite":
+        pay_cols = {row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(payments)")}
+        if "is_renewal" not in pay_cols:
+            sync_conn.exec_driver_sql("ALTER TABLE payments ADD COLUMN is_renewal BOOLEAN DEFAULT 0")
+        sub_cols = {row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(subscriptions)")}
+        if "auto_renew_enabled" not in sub_cols:
+            sync_conn.exec_driver_sql("ALTER TABLE subscriptions ADD COLUMN auto_renew_enabled BOOLEAN DEFAULT 0")
+        if "auto_renew_plan_code" not in sub_cols:
+            sync_conn.exec_driver_sql("ALTER TABLE subscriptions ADD COLUMN auto_renew_plan_code VARCHAR(20)")
+        if "renewal_reminder_sent_at" not in sub_cols:
+            sync_conn.exec_driver_sql("ALTER TABLE subscriptions ADD COLUMN renewal_reminder_sent_at DATETIME")
+        return
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_renewal BOOLEAN DEFAULT FALSE"
+    )
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS auto_renew_enabled BOOLEAN DEFAULT FALSE"
+    )
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS auto_renew_plan_code VARCHAR(20)"
+    )
+    sync_conn.exec_driver_sql(
+        "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS renewal_reminder_sent_at TIMESTAMPTZ"
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services.billing_scheduler import start_billing_scheduler
     from app.services.strategy_scheduler import start_strategy_scheduler
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_add_user_columns)
         await conn.run_sync(_add_strategy_columns)
+        await conn.run_sync(_add_subscription_columns)
     scheduler_task = start_strategy_scheduler()
+    billing_task = start_billing_scheduler()
     yield
     scheduler_task.cancel()
+    billing_task.cancel()
     try:
         await scheduler_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await billing_task
     except asyncio.CancelledError:
         pass
     await engine.dispose()
