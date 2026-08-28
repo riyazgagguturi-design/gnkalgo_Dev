@@ -3,6 +3,8 @@ import random
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
 from app.services.instrument_service import instrument_service
 
@@ -69,13 +71,16 @@ def _generate_mock_candles(symbol: str, interval: str, count: int = 500) -> list
 class CandleService:
     async def get_candles(
         self,
+        db: AsyncSession,
         symbol: str,
         exchange: str,
         interval: str,
         adapter=None,
         count: int = 500,
     ) -> dict:
-        inst = instrument_service.get(symbol)
+        inst = await instrument_service.get(db, symbol, exchange)
+        if not inst:
+            inst = instrument_service.curated_fallback(symbol)
         if not inst:
             inst = {
                 "symbol": symbol.upper(),
@@ -101,8 +106,10 @@ class CandleService:
         if not candles and use_mock:
             candles = _generate_mock_candles(inst["symbol"], interval, count)
             source = "mock_dev"
-        else:
+        elif candles:
             source = "dhan"
+        else:
+            source = "empty"
 
         # Normalize ascending, unique timestamps
         seen = set()

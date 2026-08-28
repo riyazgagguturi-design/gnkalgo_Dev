@@ -43,13 +43,32 @@ async def market_status():
 
 
 @router.get("/instruments/search")
-async def search_instruments(q: str = Query(default="", max_length=64), limit: int = Query(default=20, le=50)):
-    return {"items": instrument_service.search(q, limit)}
+async def search_instruments(
+    q: str = Query(default="", max_length=64),
+    limit: int = Query(default=20, le=50),
+    exchange: str | None = Query(default=None, max_length=8),
+    segment: str | None = Query(default=None, max_length=16),
+    db: AsyncSession = Depends(get_db),
+):
+    items = await instrument_service.search(db, q, limit=limit, exchange=exchange, segment=segment)
+    return {"items": items, "total": len(items), "source": "db"}
+
+
+@router.get("/instruments/{symbol}")
+async def get_instrument(
+    symbol: str,
+    exchange: str = Query(default="NSE"),
+    db: AsyncSession = Depends(get_db),
+):
+    inst = await instrument_service.get(db, symbol, exchange)
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instrument not found")
+    return inst
 
 
 @router.get("/candles")
 async def market_candles(
-    symbol: str = Query(..., min_length=1, max_length=32),
+    symbol: str = Query(..., min_length=1, max_length=64),
     exchange: str = Query(default="NSE"),
     interval: str = Query(default="5m"),
     current_user: User = Depends(get_current_user),
@@ -62,7 +81,7 @@ async def market_candles(
             adapter = get_broker_adapter(conn)
         except Exception:
             adapter = None
-    return await candle_service.get_candles(symbol, exchange, interval, adapter=adapter)
+    return await candle_service.get_candles(db, symbol, exchange, interval, adapter=adapter)
 
 
 @router.get("/quote")
@@ -72,7 +91,9 @@ async def market_quote(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    inst = instrument_service.get(symbol)
+    inst = await instrument_service.get(db, symbol, exchange)
+    if not inst:
+        inst = instrument_service.curated_fallback(symbol)
     if not inst:
         raise HTTPException(status_code=404, detail="Instrument not found")
 

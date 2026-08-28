@@ -3,6 +3,10 @@ const WATCHLIST_KEY = "gnk_watchlists";
 export type WatchlistItem = {
   symbol: string;
   exchange: string;
+  display_name?: string;
+  security_id?: string;
+  exchange_segment?: string;
+  segment?: string;
 };
 
 export type Watchlists = Record<string, WatchlistItem[]>;

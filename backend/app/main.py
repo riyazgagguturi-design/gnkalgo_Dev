@@ -25,6 +25,7 @@ from app.api.webhooks import router as webhooks_router
 from app.config import settings
 from app.database import Base, engine
 from app.models import billing as _billing_models  # noqa: F401
+from app.models import instrument as _instrument_models  # noqa: F401
 from app.models import trading as _trading_models  # noqa: F401
 from app.models import user as _user_models  # noqa: F401
 
@@ -122,6 +123,7 @@ def _add_profile_columns(sync_conn):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.services.billing_scheduler import start_billing_scheduler
+    from app.services.instrument_scheduler import bootstrap_instruments, start_instrument_scheduler
     from app.services.strategy_scheduler import start_strategy_scheduler
 
     async with engine.begin() as conn:
@@ -130,11 +132,17 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(_add_strategy_columns)
         await conn.run_sync(_add_subscription_columns)
         await conn.run_sync(_add_profile_columns)
+
+    await bootstrap_instruments()
+
     scheduler_task = start_strategy_scheduler()
     billing_task = start_billing_scheduler()
+    instrument_task = start_instrument_scheduler() if settings.instrument_sync_enabled else None
     yield
     scheduler_task.cancel()
     billing_task.cancel()
+    if instrument_task:
+        instrument_task.cancel()
     try:
         await scheduler_task
     except asyncio.CancelledError:
@@ -143,6 +151,11 @@ async def lifespan(app: FastAPI):
         await billing_task
     except asyncio.CancelledError:
         pass
+    if instrument_task:
+        try:
+            await instrument_task
+        except asyncio.CancelledError:
+            pass
     await engine.dispose()
 
 

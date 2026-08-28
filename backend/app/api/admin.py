@@ -9,6 +9,7 @@ from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import Payment, Subscription, User
 from app.services import billing_service
+from app.services.instrument_sync_service import instrument_sync_service
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -119,3 +120,42 @@ async def confirm_payment(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"status": payment.status, "message": "Subscription activated"}
+
+
+@router.post("/instruments/sync")
+async def sync_instruments(
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await instrument_sync_service.sync_from_url(db)
+    return {
+        "status": run.status,
+        "rows_upserted": run.rows_upserted,
+        "rows_deactivated": run.rows_deactivated,
+        "error": run.error,
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+    }
+
+
+@router.get("/instruments/sync/status")
+async def instrument_sync_status(
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await instrument_sync_service.latest_run(db)
+    count = await instrument_sync_service.count_instruments(db)
+    if not run:
+        return {"instrument_count": count, "last_run": None}
+    return {
+        "instrument_count": count,
+        "last_run": {
+            "status": run.status,
+            "rows_upserted": run.rows_upserted,
+            "rows_deactivated": run.rows_deactivated,
+            "error": run.error,
+            "started_at": run.started_at,
+            "finished_at": run.finished_at,
+            "source_url": run.source_url,
+        },
+    }

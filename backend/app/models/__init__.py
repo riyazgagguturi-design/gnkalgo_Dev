@@ -1,3 +1,4 @@
+from app.models.instrument import Instrument, InstrumentSyncRun
 from app.models.billing import Payment, Subscription
 from app.models.trading import (
     Order,
@@ -33,4 +34,6 @@ __all__ = [
     "WebhookLog",
     "Payment",
     "Subscription",
+    "Instrument",
+    "InstrumentSyncRun",
 ]

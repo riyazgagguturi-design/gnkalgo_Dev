@@ -11,6 +11,7 @@ from fastapi import WebSocket
 from app.brokers.dhan_feed_parser import PREV_CLOSE_PACKET, TICKER_PACKET
 from app.brokers.dhan_market_feed import DhanMarketFeed
 from app.config import settings
+from app.database import AsyncSessionLocal
 from app.services.candle_service import BASE_PRICES
 from app.services.instrument_segments import dhan_exchange_segment, feed_key
 from app.services.instrument_service import instrument_service
@@ -43,16 +44,29 @@ def _client_key(symbol: str, exchange: str) -> str:
   return f"{symbol.upper()}:{exchange.upper()}"
 
 
-def _resolve_instrument(symbol: str, exchange: str) -> dict | None:
-  inst = instrument_service.get(symbol)
-  if not inst:
+async def _resolve_instrument(symbol: str, exchange: str) -> dict | None:
+    async with AsyncSessionLocal() as db:
+        inst = await instrument_service.resolve(db, symbol, exchange)
+        if inst:
+            seg = inst.get("exchange_segment") or dhan_exchange_segment(
+                inst.get("exchange", exchange), inst.get("segment", "EQUITY")
+            )
+            return {
+                **inst,
+                "dhan_segment": seg,
+                "feed_key": feed_key(seg, inst["security_id"]),
+            }
+        fallback = instrument_service.curated_fallback(symbol)
+        if fallback:
+            seg = fallback.get("exchange_segment") or dhan_exchange_segment(
+                fallback["exchange"], fallback["segment"]
+            )
+            return {
+                **fallback,
+                "dhan_segment": seg,
+                "feed_key": feed_key(seg, fallback["security_id"]),
+            }
     return None
-  seg = dhan_exchange_segment(inst.get("exchange", exchange), inst.get("segment", "EQUITY"))
-  return {
-    **inst,
-    "dhan_segment": seg,
-    "feed_key": feed_key(seg, inst["security_id"]),
-  }
 
 
 async def _broadcast_to_clients(key: str, message: dict) -> None:
@@ -113,21 +127,35 @@ async def _on_dhan_tick(user_id: str, tick: dict) -> None:
 
 async def _warm_index_subscriptions(feed: DhanMarketFeed) -> None:
     """Subscribe index instruments for ticker cache / header indices."""
-    from app.data.instrument_master import INSTRUMENTS
+    from sqlalchemy import select
+
+    from app.models.instrument import Instrument
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Instrument).where(
+                Instrument.is_active.is_(True),
+                Instrument.segment == "INDEX",
+                Instrument.exchange.in_(("NSE", "BSE")),
+            )
+        )
+        index_rows = result.scalars().all()
 
     instruments = [
-        (dhan_exchange_segment(i["exchange"], i["segment"]), i["security_id"])
-        for i in INSTRUMENTS
-        if i.get("segment") == "INDEX"
+        (row.exchange_segment, row.security_id) for row in index_rows
     ]
     if instruments:
         await feed.subscribe(instruments)
-        for inst in INSTRUMENTS:
-            if inst.get("segment") == "INDEX":
-                seg = dhan_exchange_segment(inst["exchange"], inst["segment"])
-                bind_symbol(seg, inst["security_id"], inst["symbol"])
-                fk = feed_key(seg, inst["security_id"])
-                _instrument_meta[fk] = inst
+        for row in index_rows:
+            bind_symbol(row.exchange_segment, row.security_id, row.symbol)
+            fk = feed_key(row.exchange_segment, row.security_id)
+            _instrument_meta[fk] = {
+                "symbol": row.symbol,
+                "exchange": row.exchange,
+                "segment": row.segment,
+                "security_id": row.security_id,
+                "exchange_segment": row.exchange_segment,
+            }
 
 
 async def _ensure_user_feed(user_id: str, creds: dict) -> DhanMarketFeed | None:
@@ -226,7 +254,7 @@ async def subscribe_ws(
   exchange: str,
   dhan_creds: dict | None,
 ) -> None:
-  inst = _resolve_instrument(symbol, exchange)
+  inst = await _resolve_instrument(symbol, exchange)
   if not inst:
     await ws.send_text(json.dumps({"type": "error", "message": "Instrument not found"}))
     return
@@ -266,7 +294,7 @@ async def subscribe_ws(
 
 
 async def unsubscribe_ws(ws: WebSocket, user_id: str, symbol: str, exchange: str) -> None:
-  inst = _resolve_instrument(symbol, exchange)
+  inst = await _resolve_instrument(symbol, exchange)
   if not inst:
     return
   client_key = _client_key(inst["symbol"], inst.get("exchange", exchange))

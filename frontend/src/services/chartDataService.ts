@@ -8,6 +8,20 @@ export type Instrument = {
   segment: string;
   security_id: string;
   instrument_token: string;
+  exchange_segment?: string;
+  instrument_type?: string;
+  expiry?: string | null;
+  strike?: number | null;
+  option_type?: string | null;
+  underlying_symbol?: string | null;
+  lot_size?: number | null;
+  trading_symbol?: string | null;
+};
+
+export type InstrumentSearchResult = {
+  items: Instrument[];
+  total: number;
+  source: string;
 };
 
 export type Quote = {
@@ -18,15 +32,32 @@ export type Quote = {
   change: number;
   change_pct: number;
   security_id: string;
+  source?: string;
 };
 
-export async function searchInstruments(q: string): Promise<Instrument[]> {
-  const res = await api<{ items: Instrument[] }>(
-    `/api/v1/market/instruments/search?q=${encodeURIComponent(q)}`,
+export async function searchInstruments(
+  q: string,
+  options?: { limit?: number; exchange?: string; segment?: string },
+): Promise<Instrument[]> {
+  const params = new URLSearchParams({ q });
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.exchange) params.set("exchange", options.exchange);
+  if (options?.segment) params.set("segment", options.segment);
+  const res = await api<InstrumentSearchResult>(
+    `/api/v1/market/instruments/search?${params}`,
     {},
     true,
   );
   return res.items;
+}
+
+export async function fetchInstrument(symbol: string, exchange = "NSE"): Promise<Instrument> {
+  const params = new URLSearchParams({ exchange });
+  return api<Instrument>(
+    `/api/v1/market/instruments/${encodeURIComponent(symbol)}?${params}`,
+    {},
+    true,
+  );
 }
 
 export async function fetchCandles(

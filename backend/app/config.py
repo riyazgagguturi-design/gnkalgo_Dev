@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     dhan_feed_ws_url: str = "wss://api-feed.dhan.co"
     dhan_static_ip: str = ""
 
+    instrument_master_url: str = "https://images.dhan.co/api-data/api-scrip-master.csv"
+    instrument_sync_enabled: bool = True
+    instrument_sync_interval_hours: int = 24
+
     groww_api_base_url: str = "https://api.groww.in"
     groww_client_id: str = ""
     groww_client_secret: str = ""
