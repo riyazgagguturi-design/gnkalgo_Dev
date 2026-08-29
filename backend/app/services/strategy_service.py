@@ -1,34 +1,101 @@
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Strategy, StrategyRun, User
-from app.schemas.trading import PlaceOrderRequest, StrategyCreateRequest, StrategyRules, StrategyUpdateRequest
+from app.schemas.trading import (
+    PlaceOrderRequest,
+    SmcIntradayRules,
+    StrategyCreateRequest,
+    StrategyRules,
+    StrategyUpdateRequest,
+)
+from app.services.candle_service import candle_service
 from app.services.order_service import order_service
+from app.services.strategy_evaluators.smc_intraday import evaluate_smc_intraday
+
+ParsedRules = StrategyRules | SmcIntradayRules
+
+
+def _rules_from_create(data: StrategyCreateRequest) -> dict:
+    if data.strategy_type == "smc_intraday":
+        return SmcIntradayRules(
+            timeframe=data.timeframe or "15m",
+            entry=data.entry_mode or "fvg",
+            action=data.action or "AUTO",
+            qty=data.qty or 1,
+            stop_loss_buffer_pct=data.stop_loss_buffer_pct or 0.1,
+            target_rr=data.target_rr or 2.0,
+        ).model_dump()
+    action = data.action if data.action in ("BUY", "SELL") else "BUY"
+    return StrategyRules(action=action, qty=data.qty or 1).model_dump()
+
+
+def _merge_update_rules(data: StrategyUpdateRequest, existing: str) -> dict:
+    base = json.loads(existing or "{}")
+    strategy_type = data.strategy_type or base.get("type", "simple")
+
+    if strategy_type == "smc_intraday":
+        merged = {
+            "type": "smc_intraday",
+            "timeframe": data.timeframe or base.get("timeframe", "15m"),
+            "entry": data.entry_mode or base.get("entry", "fvg"),
+            "action": data.action or base.get("action", "AUTO"),
+            "qty": data.qty if data.qty is not None else base.get("qty", 1),
+            "stop_loss_buffer_pct": (
+                data.stop_loss_buffer_pct
+                if data.stop_loss_buffer_pct is not None
+                else base.get("stop_loss_buffer_pct", 0.1)
+            ),
+            "target_rr": data.target_rr if data.target_rr is not None else base.get("target_rr", 2.0),
+            "swing_lookback": base.get("swing_lookback", 5),
+        }
+        return SmcIntradayRules(**merged).model_dump()
+
+    merged = {
+        "type": "simple",
+        "action": data.action or base.get("action", "BUY"),
+        "qty": data.qty if data.qty is not None else base.get("qty", 1),
+    }
+    if merged["action"] not in ("BUY", "SELL"):
+        merged["action"] = "BUY"
+    return StrategyRules(**merged).model_dump()
 
 
 def build_rules_json(data: StrategyCreateRequest | StrategyUpdateRequest, existing: str | None = None) -> str:
     if data.rules_json:
         return data.rules_json
-    if data.action is not None or data.qty is not None:
-        base = json.loads(existing or "{}")
-        if data.action is not None:
-            base["action"] = data.action
-        if data.qty is not None:
-            base["qty"] = data.qty
-        return json.dumps(base)
-    return existing or json.dumps({"action": "BUY", "qty": 1})
+    if isinstance(data, StrategyCreateRequest):
+        return json.dumps(_rules_from_create(data))
+    if any(
+        v is not None
+        for v in (
+            data.action,
+            data.qty,
+            data.strategy_type,
+            data.timeframe,
+            data.entry_mode,
+            data.stop_loss_buffer_pct,
+            data.target_rr,
+        )
+    ):
+        return json.dumps(_merge_update_rules(data, existing or "{}"))
+    return existing or json.dumps({"type": "simple", "action": "BUY", "qty": 1})
 
 
-def parse_rules(rules_json: str) -> StrategyRules:
+def parse_rules(rules_json: str) -> ParsedRules:
     raw = json.loads(rules_json or "{}")
-    return StrategyRules(
-        action=raw.get("action", "BUY") if raw.get("action") in ("BUY", "SELL") else "BUY",
-        qty=int(raw.get("qty", 1)),
-    )
+    if raw.get("type") == "smc_intraday":
+        return SmcIntradayRules(**raw)
+    action = raw.get("action", "BUY")
+    if action not in ("BUY", "SELL"):
+        action = "BUY"
+    return StrategyRules(action=action, qty=int(raw.get("qty", 1)))
 
 
 def _aware(dt: datetime | None) -> datetime | None:
@@ -93,7 +160,19 @@ class StrategyService:
         if data.max_daily_loss is not None:
             strategy.max_daily_loss = data.max_daily_loss
 
-        if any(v is not None for v in (data.rules_json, data.action, data.qty)):
+        if any(
+            v is not None
+            for v in (
+                data.rules_json,
+                data.action,
+                data.qty,
+                data.strategy_type,
+                data.timeframe,
+                data.entry_mode,
+                data.stop_loss_buffer_pct,
+                data.target_rr,
+            )
+        ):
             strategy.rules_json = build_rules_json(data, strategy.rules_json)
 
         schedule_was_off = not strategy.schedule_enabled
@@ -137,6 +216,62 @@ class StrategyService:
             return True
         return last + timedelta(minutes=strategy.interval_minutes) <= now
 
+    async def _run_smc_intraday(
+        self,
+        db: AsyncSession,
+        user: User,
+        strategy: Strategy,
+        rules: SmcIntradayRules,
+        run: StrategyRun,
+        scheduled: bool,
+    ) -> StrategyRun:
+        candle_data = await candle_service.get_candles(
+            db,
+            strategy.symbol,
+            "NSE",
+            rules.timeframe,
+            count=120,
+        )
+        candles = candle_data.get("candles", [])
+        signal = evaluate_smc_intraday(
+            candles,
+            entry_mode=rules.entry,
+            side_mode=rules.action,
+            buffer_pct=rules.stop_loss_buffer_pct,
+            target_rr=rules.target_rr,
+            swing_lookback=rules.swing_lookback,
+        )
+        if not signal.should_trade or not signal.side:
+            run.status = "SKIPPED"
+            run.notes = f"SMC no trade: {signal.reason}"
+            if scheduled:
+                strategy.last_scheduled_run_at = datetime.now(timezone.utc)
+            return run
+
+        qty = min(rules.qty, strategy.max_quantity)
+        order = await order_service.place_order(
+            db,
+            user,
+            PlaceOrderRequest(
+                symbol=strategy.symbol,
+                side=signal.side,
+                quantity=qty,
+                paper_mode=strategy.paper_mode,
+                broker="paper" if strategy.paper_mode else "dhan",
+                product_type="INTRADAY",
+            ),
+            source="strategy_scheduler" if scheduled else "strategy",
+            strategy_id=strategy.id,
+        )
+        run.status = "COMPLETED" if order.status in ("PAPER_FILLED", "FILLED", "PENDING") else "FAILED"
+        run.notes = (
+            f"Order {order.id} status={order.status}; "
+            f"entry={signal.entry} sl={signal.stop_loss} target={signal.target} ({signal.reason})"
+        )
+        if scheduled:
+            strategy.last_scheduled_run_at = datetime.now(timezone.utc)
+        return run
+
     async def run_once(
         self, db: AsyncSession, user: User, strategy_id: uuid.UUID, scheduled: bool = False
     ) -> StrategyRun:
@@ -148,12 +283,15 @@ class StrategyService:
             raise ValueError("Strategy not found")
 
         rules = parse_rules(strategy.rules_json)
-        side = rules.action
-        qty = min(rules.qty, strategy.max_quantity)
-
         run = StrategyRun(strategy_id=strategy.id, status="RUNNING")
         db.add(run)
         await db.flush()
+
+        if isinstance(rules, SmcIntradayRules):
+            return await self._run_smc_intraday(db, user, strategy, rules, run, scheduled)
+
+        side: Literal["BUY", "SELL"] = rules.action
+        qty = min(rules.qty, strategy.max_quantity)
 
         order = await order_service.place_order(
             db,
@@ -164,6 +302,7 @@ class StrategyService:
                 quantity=qty,
                 paper_mode=strategy.paper_mode,
                 broker="paper" if strategy.paper_mode else "dhan",
+                product_type="INTRADAY",
             ),
             source="strategy_scheduler" if scheduled else "strategy",
             strategy_id=strategy.id,

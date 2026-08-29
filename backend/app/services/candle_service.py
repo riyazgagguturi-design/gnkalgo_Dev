@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services.instrument_service import instrument_service
+from app.services.redis_cache import cache_get, cache_set
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -89,6 +90,12 @@ class CandleService:
                 "security_id": symbol,
             }
 
+        cache_key = f"candles:{inst['symbol']}:{exchange}:{interval}:{count}"
+        cached = await cache_get(cache_key)
+        if cached:
+            cached["source"] = f"{cached.get('source', 'unknown')}+redis"
+            return cached
+
         use_mock = (settings.app_env != "production" or settings.debug) and not adapter
         candles: list[dict] = []
 
@@ -122,7 +129,7 @@ class CandleService:
                 continue
             normalized.append(c)
 
-        return {
+        result = {
             "symbol": inst["symbol"],
             "exchange": inst.get("exchange", exchange),
             "interval": interval,
@@ -130,6 +137,9 @@ class CandleService:
             "source": source,
             "security_id": inst.get("security_id"),
         }
+        if normalized:
+            await cache_set(cache_key, result, settings.cache_candles_ttl_seconds)
+        return result
 
 
 candle_service = CandleService()

@@ -6,8 +6,20 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class StrategyRules(BaseModel):
+    type: Literal["simple"] = "simple"
     action: Literal["BUY", "SELL"] = "BUY"
     qty: int = Field(default=1, gt=0, le=10000)
+
+
+class SmcIntradayRules(BaseModel):
+    type: Literal["smc_intraday"] = "smc_intraday"
+    timeframe: Literal["5m", "15m"] = "15m"
+    entry: Literal["order_block", "fvg", "bos"] = "fvg"
+    action: Literal["BUY", "SELL", "AUTO"] = "AUTO"
+    qty: int = Field(default=1, gt=0, le=10000)
+    stop_loss_buffer_pct: float = Field(default=0.1, ge=0, le=5)
+    target_rr: float = Field(default=2.0, ge=0.5, le=10)
+    swing_lookback: int = Field(default=5, ge=2, le=50)
 
 
 class PlaceOrderRequest(BaseModel):
@@ -48,8 +60,13 @@ class StrategyCreateRequest(BaseModel):
     description: str | None = None
     symbol: str = "RELIANCE"
     rules_json: str | None = None
-    action: Literal["BUY", "SELL"] | None = None
+    action: Literal["BUY", "SELL", "AUTO"] | None = None
     qty: int | None = Field(default=None, gt=0, le=10000)
+    strategy_type: Literal["simple", "smc_intraday"] = "simple"
+    timeframe: Literal["5m", "15m"] | None = None
+    entry_mode: Literal["order_block", "fvg", "bos"] | None = None
+    stop_loss_buffer_pct: float | None = Field(default=None, ge=0, le=5)
+    target_rr: float | None = Field(default=None, ge=0.5, le=10)
     paper_mode: bool = True
     max_quantity: int = Field(default=100, gt=0, le=10000)
     max_daily_loss: float = 5000
@@ -68,8 +85,13 @@ class StrategyUpdateRequest(BaseModel):
     description: str | None = None
     symbol: str | None = None
     rules_json: str | None = None
-    action: Literal["BUY", "SELL"] | None = None
+    action: Literal["BUY", "SELL", "AUTO"] | None = None
     qty: int | None = Field(default=None, gt=0, le=10000)
+    strategy_type: Literal["simple", "smc_intraday"] | None = None
+    timeframe: Literal["5m", "15m"] | None = None
+    entry_mode: Literal["order_block", "fvg", "bos"] | None = None
+    stop_loss_buffer_pct: float | None = Field(default=None, ge=0, le=5)
+    target_rr: float | None = Field(default=None, ge=0.5, le=10)
     paper_mode: bool | None = None
     max_quantity: int | None = Field(default=None, gt=0, le=10000)
     max_daily_loss: float | None = None

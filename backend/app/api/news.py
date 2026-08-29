@@ -10,4 +10,4 @@ async def latest_news(
     limit: int = Query(default=10, ge=1, le=50),
     symbol: str | None = Query(default=None, max_length=32),
 ):
-    return news_service.latest(limit=limit, symbol=symbol)
+    return await news_service.latest(limit=limit, symbol=symbol)

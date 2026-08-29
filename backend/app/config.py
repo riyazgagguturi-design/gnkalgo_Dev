@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     auto_renew_lead_hours: int = 24
     billing_scheduler_tick_seconds: int = 3600
 
+    cache_candles_ttl_seconds: int = 120
+    cache_news_ttl_seconds: int = 300
+    news_provider: str = "finnhub"
+    finnhub_api_key: str = ""
+    finnhub_base_url: str = "https://finnhub.io/api/v1"
+
     @property
     def admin_email_list(self) -> list[str]:
         return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
