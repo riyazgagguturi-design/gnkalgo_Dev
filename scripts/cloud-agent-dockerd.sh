@@ -24,10 +24,10 @@ if ! pgrep -x dockerd >/dev/null 2>&1; then
 fi
 
 for _ in $(seq 1 60); do
-  if docker info >/dev/null 2>&1; then
   if [[ -S /var/run/docker.sock ]]; then
     sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
   fi
+  if docker info >/dev/null 2>&1; then
     exit 0
   fi
   sleep 1
